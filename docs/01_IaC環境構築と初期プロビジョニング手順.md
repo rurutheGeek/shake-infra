@@ -353,7 +353,14 @@ ansible-playbook -i inventory.ini site.yml
 #### group_vars/all/vars.yml の作成と配置
 公開可能なパブリック変数を定義します。以下の内容で `group_vars/all/vars.yml` を作成します。
 
+> **💡 Column: Pythonインタープリタの自動検出とバージョン差異について**
+> Ansible実行時、「Host is using the discovered Python interpreter at ...」という警告が表示される場合があります。これは各サーバーのOS（UbuntuやDebian等）の標準Pythonバージョンが異なるために生じる「自動検出の報告」であり、エラーではありません。
+> 本環境では、システムOSの破損を防ぐためサーバーごとのPythonバージョンは無理に統一せず、アプリケーション固有の環境は `uv` 等で切り離して構築するモダンな設計を採用しています。この不要な警告を抑制するため、変数ファイルの冒頭に `ansible_python_interpreter: auto_silent` を設定しています。
+
 ```yaml
+# Ansible 全体設定
+ansible_python_interpreter: auto_silent
+
 # パブリックインフラ設定
 domain_name: "example.com"
 cf_bucket_name: "shakeserver-backup"

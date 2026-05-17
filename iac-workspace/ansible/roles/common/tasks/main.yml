@@ -78,7 +78,7 @@
   ansible.builtin.command: swapoff -a
   changed_when: false
 
-- name: fstab からのスワップ設定の完全排除
+- name: Fstab からのスワップ設定の完全排除
   ansible.builtin.replace:
     path: /etc/fstab
     regexp: '^([^#].*\sswap\s.*)$'

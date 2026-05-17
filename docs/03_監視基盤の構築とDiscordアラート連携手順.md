@@ -103,8 +103,6 @@ mkdir -p ~/iac-workspace/ansible/roles/ups_exporter/{tasks,handlers}
   ansible.builtin.apt:
     name:
       - git
-      - python3-venv
-      - python3-pip
       - i2c-tools
       - ufw
       - curl
@@ -424,7 +422,7 @@ roles/exporters/tasks/main.yml
       - "/sys:/sys:ro"
       - "/var/lib/docker/:/var/lib/docker:ro"
       - "/dev/disk/:/dev/disk:ro"
-  when: docker_check.rc == 0
+  when: exporters_docker_check.rc == 0
 ```
 
 #### 2. Prometheus へのスクレイプジョブの追加

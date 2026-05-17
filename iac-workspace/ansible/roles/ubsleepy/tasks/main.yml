@@ -43,12 +43,14 @@
   notify: Restart UBSLEEPY
 
 - name: App_data.zipを展開
-  ansible.builtin.shell: |
-    unzip -o "{{ ubsleepy_dir }}/{{ ubsleepy_r2_object_key }}" -d "{{ ubsleepy_dir }}"
-  args:
-    chdir: "{{ ubsleepy_dir }}"
+  ansible.builtin.unarchive:
+    src: "{{ ubsleepy_dir }}/{{ ubsleepy_r2_object_key }}"
+    dest: "{{ ubsleepy_dir }}"
+    remote_src: yes
+    extra_opts:
+      - -O
+      - cp932
   when: not ubsleepy_save_dir.stat.exists
-  changed_when: true
   notify: Restart UBSLEEPY
 
 - name: App_data.zipをクリーンアップ
