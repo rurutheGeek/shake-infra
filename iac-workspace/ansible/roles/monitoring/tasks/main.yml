@@ -1,0 +1,49 @@
+---
+# monitoring/tasks/main.yml
+- name: Dockerインストールスクリプトの実行
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL https://get.docker.com | sh
+  args:
+    creates: /usr/bin/docker
+    executable: /bin/bash
+
+- name: Docker Compose V2 プラグインのインストール
+  ansible.builtin.apt:
+    name: docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: 監視用ポート（Prometheus 9090, Grafana 3000）の開放
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "9090"
+    - "3000"
+
+- name: 監視用ディレクトリの作成
+  ansible.builtin.file:
+    path: /opt/monitoring
+    state: directory
+    owner: ansible_admin
+    mode: "0755"
+
+- name: 設定ファイルの配置
+  ansible.builtin.copy:
+    src: "files/monitoring/{{ item }}"
+    dest: /opt/monitoring/{{ item }}
+    mode: "0644"
+  loop:
+    - prometheus.yml
+    - monitoring-compose.yml
+  notify: Restart monitoring containers
+
+- name: コンテナの起動 (Docker Compose V2)
+  community.docker.docker_compose_v2:
+    project_src: /opt/monitoring
+    files:
+      - monitoring-compose.yml
+    state: present
+    wait: true

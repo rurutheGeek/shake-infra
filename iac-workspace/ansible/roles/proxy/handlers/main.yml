@@ -1,0 +1,19 @@
+---
+# proxy/handlers/main.yml
+- name: Restart timesyncd
+  ansible.builtin.systemd:
+    name: systemd-timesyncd
+    state: restarted
+    enabled: true
+
+- name: Restart Nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: restarted
+    enabled: true
+
+- name: Restart sslh
+  ansible.builtin.systemd:
+    name: sslh
+    state: restarted
+    enabled: true

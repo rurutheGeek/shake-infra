@@ -1,0 +1,113 @@
+---
+# proxy/tasks/main.yml
+- name: TailscaleのDNS強制上書き（MagicDNS）を無効化
+  ansible.builtin.command: tailscale set --accept-dns=false
+  failed_when: false
+  changed_when: false
+
+- name: 学内NTPサーバーの設定
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/timesyncd.conf
+    regexp: "^#?NTP="
+    line: "NTP=133.80.128.5 133.80.153.2"
+  notify: Restart timesyncd
+
+- name: 既存の /etc/resolv.conf を削除（シンボリックリンク解除）
+  ansible.builtin.file:
+    path: /etc/resolv.conf
+    state: absent
+
+- name: 大学指定のDNSサーバーを固定で設定
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver 133.80.128.5
+      nameserver 133.80.153.2
+    mode: "0644"
+
+- name: 時刻同期（NTP再起動）をapt実行前に即時反映させる
+  ansible.builtin.meta: flush_handlers
+
+- name: パッケージのインストール (Nginx, sslh, ufw)
+  ansible.builtin.apt:
+    name:
+      - nginx
+      - libnginx-mod-stream
+      - sslh
+      - ufw
+    state: present
+    update_cache: true
+
+- name: "古いSSHポートの開放ルール (全許可) を削除"
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    delete: true
+
+- name: "SSHポートの開放 (UFW: Tailscale経由を許可)"
+  community.general.ufw:
+    rule: allow
+    interface: tailscale0
+    direction: in
+    port: "22"
+    proto: tcp
+
+- name: "SSHポートの開放 (UFW: プライベートIPからのアクセスを許可)"
+  community.general.ufw:
+    rule: allow
+    src: "{{ item }}"
+    port: "22"
+    proto: tcp
+  loop:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+
+- name: "HTTP/HTTPSポートの開放 (UFW)"
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "80"
+    - "443"
+
+- name: "UFWの有効化"
+  community.general.ufw:
+    state: enabled
+
+- name: デフォルト設定（80番ポート競合）の削除
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: ストリーム設定用ディレクトリの作成
+  ansible.builtin.file:
+    path: /etc/nginx/stream.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Nginx.confにstreamブロックを追記
+  ansible.builtin.blockinfile:
+    path: /etc/nginx/nginx.conf
+    marker: "# {mark} ANSIBLE MANAGED BLOCK: stream configuration"
+    insertafter: EOF
+    content: |
+      stream {
+          include /etc/nginx/stream.conf.d/*.conf;
+      }
+
+- name: Nginxプロキシ設定ファイルの配置
+  ansible.builtin.copy:
+    src: files/proxy/stream_proxy.conf
+    dest: /etc/nginx/stream.conf.d/stream_proxy.conf
+    mode: "0644"
+  notify: Restart Nginx
+
+- name: Sslh設定ファイルの配置
+  ansible.builtin.copy:
+    src: files/proxy/sslh.default
+    dest: /etc/default/sslh
+    mode: "0644"
+  notify: Restart sslh

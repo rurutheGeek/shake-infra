@@ -1,0 +1,33 @@
+---
+- name: バックアップスクリプトを/usr/local/binに配置
+  ansible.builtin.template:
+    src: backup_ubsleepy_r2.sh.j2
+    dest: /usr/local/bin/backup_ubsleepy_r2.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Systemdサービスファイルを配置
+  ansible.builtin.template:
+    src: ubsleepy-backup.service.j2
+    dest: /etc/systemd/system/ubsleepy-backup.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: systemd daemon-reload
+
+- name: Systemdタイマーファイルを配置
+  ansible.builtin.template:
+    src: ubsleepy-backup.timer.j2
+    dest: /etc/systemd/system/ubsleepy-backup.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: systemd daemon-reload
+
+- name: Systemdタイマーを有効化して開始
+  ansible.builtin.systemd:
+    name: ubsleepy-backup.timer
+    enabled: true
+    state: started
+  when: not ansible_check_mode

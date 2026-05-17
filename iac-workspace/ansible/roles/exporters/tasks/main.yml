@@ -1,0 +1,45 @@
+---
+# exporters/tasks/main.yml
+- name: Node Exporterのインストール
+  ansible.builtin.apt:
+    name: prometheus-node-exporter
+    state: present
+    update_cache: true
+
+- name: サービスの有効化と起動
+  ansible.builtin.systemd:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started
+
+- name: Dockerコマンドの存在確認
+  ansible.builtin.command: which docker
+  register: docker_check
+  failed_when: false
+  changed_when: false
+
+- name: cAdvisorコンテナの起動
+  community.docker.docker_container:
+    name: cadvisor
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    state: started
+    restart_policy: unless-stopped
+    privileged: true
+    devices:
+      - "/dev/kmsg:/dev/kmsg"
+    ports:
+      - "8090:8080"
+    volumes:
+      - "/:/rootfs:ro"
+      - "/var/run:/var/run:ro"
+      - "/sys:/sys:ro"
+      - "/var/lib/docker/:/var/lib/docker:ro"
+      - "/dev/disk/:/dev/disk:ro"
+  when: docker_check.rc == 0
+
+- name: UFWでポート8090の開放
+  community.general.ufw:
+    rule: allow
+    port: "8090"
+    proto: tcp
+  when: docker_check.rc == 0

@@ -1,0 +1,26 @@
+---
+- name: 自動操作用ユーザーの作成と設定
+  hosts: all
+  become: true
+  vars:
+    new_user: ansible_admin
+  tasks:
+    - name: ユーザーの作成
+      ansible.builtin.user:
+        name: "{{ new_user }}"
+        state: present
+        shell: /bin/bash
+        create_home: true
+
+    - name: Sudo権限の付与 (パスワードなし)
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ new_user }}"
+        content: "{{ new_user }} ALL=(ALL) NOPASSWD: ALL"
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+    - name: SSH公開鍵の登録
+      ansible.posix.authorized_key:
+        user: "{{ new_user }}"
+        state: present
+        key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"

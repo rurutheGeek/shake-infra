@@ -1,0 +1,61 @@
+#!/bin/bash
+# =====================================================================
+# Server Lifecycle Notification Script (Ansible Managed)
+# =====================================================================
+
+WEBHOOK_URL="{{ discord_webhook_url }}"
+HOSTNAME="$(hostname)"
+MARK_FILE="/var/lib/lifecycle/normal_shutdown"
+
+if [ -z "$WEBHOOK_URL" ] || [ "$WEBHOOK_URL" = "https://discordapp.com/api/webhooks/YOUR_DUMMY_WEBHOOK_URL" ]; then
+    echo "Discord Webhook URL is not configured or dummy. Skipping notification."
+    exit 0
+fi
+
+send_discord_message() {
+    local color="$1"
+    local title="$2"
+    local description="$3"
+
+    local payload=$(cat <<EOF
+{
+  "embeds": [
+    {
+      "title": "${title}",
+      "description": "${description}",
+      "color": ${color},
+      "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    }
+  ]
+}
+EOF
+)
+
+    curl -s -H "Content-Type: application/json" -X POST -d "$payload" "$WEBHOOK_URL" > /dev/null
+}
+
+case "$1" in
+    start)
+        # 起動時の処理
+        if [ -f "$MARK_FILE" ]; then
+            # 正常なシャットダウンからの復帰
+            send_discord_message 3066993 "正常起動" "サーバー ${HOSTNAME} が正常に起動しました。"
+            rm -f "$MARK_FILE"
+        else
+            # 予期せぬシャットダウン（停電や強制電源断）からの復帰
+            send_discord_message 15158332 "予期せぬ起動" "サーバー ${HOSTNAME} が予期せぬシャットダウン（強制終了または停電など）から起動しました。前回の停止処理が正常に完了しなかった可能性があります。"
+        fi
+        ;;
+    stop)
+        # 停止時の処理
+        mkdir -p "$(dirname "$MARK_FILE")"
+        touch "$MARK_FILE"
+        send_discord_message 15105570 "安全なシャットダウン・再起動" "サーバー ${HOSTNAME} が安全なシャットダウンまたは再起動シーケンスを開始しました。"
+        ;;
+    *)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+        ;;
+esac
+
+exit 0

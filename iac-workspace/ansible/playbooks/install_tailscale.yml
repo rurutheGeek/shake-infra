@@ -1,0 +1,37 @@
+---
+- name: Tailscaleのインストールとネットワーク参加
+  hosts: all
+  become: true
+  vars:
+    tailscale_authkey: "tskey-auth-XXXXXXXXXXXXXXXXXXXXX"
+  tasks:
+    - name: Tailscaleインストールスクリプトの実行
+      ansible.builtin.shell: |
+        set -o pipefail
+        curl -fsSL https://tailscale.com/install.sh | sh
+      args:
+        creates: /usr/bin/tailscale
+        executable: /bin/bash
+
+    - name: Tailnetへの参加 (Auth Keyを使用)
+      ansible.builtin.command: tailscale up --authkey={{ tailscale_authkey }} --accept-routes --reset
+      register: tailscale_result
+      changed_when: "'Success' in tailscale_result.stdout"
+      failed_when: tailscale_result.rc != 0
+
+    - name: Tailscale IP (IPv4) の取得
+      ansible.builtin.command: tailscale ip -4
+      register: ts_ip
+      changed_when: false
+
+    - name: 各ノードのTailscale IPを表示
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} の Tailscale IP は {{ ts_ip.stdout }} です"
+
+    - name: Inventory.iniのIPアドレスをTailscale IPに自動更新
+      delegate_to: localhost
+      become: false
+      ansible.builtin.replace:
+        path: "{{ inventory_file }}"
+        regexp: "^({{ inventory_hostname }}\\s+ansible_host=)[0-9\\.]+(.*)$"
+        replace: "\\g<1>{{ ts_ip.stdout }}\\g<2>"

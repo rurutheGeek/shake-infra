@@ -1,0 +1,163 @@
+---
+# web/tasks/main.yml
+- name: Www-dataユーザーをdockerグループに追加
+  ansible.builtin.user:
+    name: "{{ app_owner }}"
+    groups: docker
+    append: true
+
+- name: Dockerリポジトリ追加のための依存パッケージをインストール
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+
+- name: Dockerの公式GPGキー用ディレクトリの作成
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Dockerの公式GPGキーの取得
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/debian/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
+
+- name: Docker公式リポジトリの追加
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/debian {{ ansible_facts['distribution_release'] }} stable
+    state: present
+    filename: docker
+
+- name: Docker Compose Pluginのインストール
+  ansible.builtin.apt:
+    name: docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: ベースディレクトリの作成
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+    mode: "0755"
+
+- name: ログディレクトリの作成
+  ansible.builtin.file:
+    path: "{{ app_dir }}/log"
+    state: directory
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+    mode: "0755"
+
+- name: SSHディレクトリの作成 (www-data用)
+  ansible.builtin.file:
+    path: "/var/www/.ssh"
+    state: directory
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+    mode: "0700"
+
+- name: 既存のデプロイキーの存在確認
+  ansible.builtin.stat:
+    path: "/var/www/.ssh/id_ed25519_deploy"
+  register: web_deploy_key_stat
+
+- name: デプロイ用SSHキーペアの生成
+  community.crypto.openssh_keypair:
+    path: "/var/www/.ssh/id_ed25519_deploy"
+    type: ed25519
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+  when: not web_deploy_key_stat.stat.exists
+
+- name: 生成（または既存）の公開鍵の取得
+  ansible.builtin.slurp:
+    src: "/var/www/.ssh/id_ed25519_deploy.pub"
+  register: web_deploy_pub_key
+
+- name: GitHubへの接続確認（疎通確認）
+  ansible.builtin.command: "ssh -T -o StrictHostKeyChecking=no -i /var/www/.ssh/id_ed25519_deploy git@github.com"
+  register: web_github_ssh_check
+  failed_when: false
+  changed_when: false
+  become: true
+  become_user: "{{ app_owner }}"
+
+- name: GitHubへのデプロイキー登録確認（未登録時のみ一時停止）
+  ansible.builtin.pause:
+    prompt: |
+      ==================================================================
+      GitHubへの接続に失敗しました。
+      以下の公開鍵をGitHubの「Deploy keys」に登録してください。
+
+      {{ web_deploy_pub_key['content'] | b64decode }}
+      ==================================================================
+  when: "'successfully authenticated' not in web_github_ssh_check.stderr"
+
+- name: アプリケーションコードをGitから同期 # noqa: latest[git]
+  ansible.builtin.git:
+    repo: "{{ web_repo_url }}"
+    dest: "{{ app_dir }}/src_tmp"
+    update: true
+    key_file: "/var/www/.ssh/id_ed25519_deploy"
+    accept_hostkey: true
+    version: HEAD
+  become: true
+  become_user: "{{ app_owner }}"
+
+- name: ソースコードを本番ディレクトリへ配置（同期）
+  ansible.posix.synchronize:
+    src: "{{ app_dir }}/src_tmp/{{ item }}"
+    dest: "{{ app_dir }}/"
+    rsync_opts:
+      - "--exclude=.git"
+  delegate_to: "{{ inventory_hostname }}"
+  loop:
+    - html
+    - quiz
+
+- name: インフラ設定ファイル群（Docker Compose等）の配置
+  ansible.builtin.copy:
+    src: files/web/
+    dest: "{{ app_dir }}/"
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+
+- name: Web用 .env の生成 (Jinja2テンプレート)
+  ansible.builtin.template:
+    src: templates/web/env.j2
+    dest: "{{ app_dir }}/.env"
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+    mode: "0600"
+
+- name: SSL秘密鍵の配置
+  ansible.builtin.copy:
+    src: secrets/web/key.pem
+    dest: "{{ app_dir }}/certs/key.pem"
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+    mode: "0600"
+
+- name: 証明書ファイルのパーミッション修正
+  ansible.builtin.file:
+    path: "{{ app_dir }}/certs/cert.pem"
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+    mode: "0600"
+
+- name: コンテナの起動・更新
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_dir }}"
+    state: present
+    build: always
+    remove_orphans: true

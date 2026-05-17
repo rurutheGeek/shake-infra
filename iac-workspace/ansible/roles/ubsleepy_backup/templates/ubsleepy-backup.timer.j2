@@ -1,0 +1,15 @@
+[Unit]
+Description=Run UBSLEEPY R2 backup daily
+Requires=ubsleepy-backup.service
+
+[Timer]
+OnCalendar=daily
+# サービスが停止していてもタイマーが起動する
+Persistent=true
+# サーバーの起動時に一斉に実行されるのを避ける
+RandomizedDelaySec=15m
+# スリープ状態からシステムを起動する
+WakeSystem=true
+
+[Install]
+WantedBy=timers.target

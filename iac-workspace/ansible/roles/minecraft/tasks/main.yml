@@ -1,0 +1,121 @@
+---
+# minecraft/tasks/main.yml
+- name: Minecraft用システムユーザー(minecraft)の作成
+  ansible.builtin.user:
+    name: minecraft
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+    groups: docker
+    append: true
+  register: minecraft_user
+
+- name: Minecraft用ディレクトリの作成
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ minecraft_user.uid }}"
+    group: "{{ minecraft_user.group }}"
+    mode: "0750"
+  loop:
+    - "{{ mc_dir }}"
+    - "{{ mc_dir }}/pixelmon"
+
+- name: Minecraft構成ファイル群の同期
+  ansible.builtin.copy:
+    src: minecraft/
+    dest: "{{ mc_dir }}/"
+    owner: "{{ minecraft_user.uid }}"
+    group: "{{ minecraft_user.group }}"
+    mode: "0640"
+
+- name: Minecraft用 .env の生成 (Jinja2テンプレート)
+  ansible.builtin.template:
+    src: minecraft/env.j2
+    dest: "{{ mc_dir }}/.env"
+    owner: "{{ minecraft_user.uid }}"
+    group: "{{ minecraft_user.group }}"
+    mode: "0600"
+
+- name: Minecraft用 .env にUID/GIDを追記
+  ansible.builtin.lineinfile:
+    path: "{{ mc_dir }}/.env"
+    line: "{{ item }}"
+  loop:
+    - "MC_UID={{ minecraft_user.uid }}"
+    - "MC_GID={{ minecraft_user.group }}"
+
+- name: 移行先Minecraftワールドデータの存在確認
+  ansible.builtin.stat:
+    path: "{{ mc_dir }}/pixelmon/world"
+  register: minecraft_world_stat
+
+- name: R2からのデータリストア処理
+  when: not minecraft_world_stat.stat.exists
+  block:
+    - name: 一時ディレクトリの作成
+      ansible.builtin.file:
+        path: "{{ mc_dir }}/tmp"
+        state: directory
+        owner: "{{ minecraft_user.uid }}"
+        group: "{{ minecraft_user.group }}"
+        mode: "0750"
+
+    - name: R2から最新のバックアップファイルを特定してダウンロード
+      ansible.builtin.shell: |
+        set -o pipefail
+        set -a
+        source {{ mc_dir }}/.env
+        set +a
+
+        LATEST=$(docker run --rm \
+          -e RCLONE_CONFIG_R2_TYPE=s3 \
+          -e RCLONE_CONFIG_R2_PROVIDER=Cloudflare \
+          -e RCLONE_CONFIG_R2_ACCESS_KEY_ID=${CF_ACCESS_KEY} \
+          -e RCLONE_CONFIG_R2_SECRET_ACCESS_KEY=${CF_SECRET_KEY} \
+          -e RCLONE_CONFIG_R2_ENDPOINT=https://${CF_ACCOUNT_ID}.r2.cloudflarestorage.com \
+          rclone/rclone lsf --sort time --reverse r2:${CF_BUCKET_NAME}/minecraft-backups/ | head -n 1)
+
+        docker run --rm \
+          -v {{ mc_dir }}/tmp:/data \
+          -e RCLONE_CONFIG_R2_TYPE=s3 \
+          -e RCLONE_CONFIG_R2_PROVIDER=Cloudflare \
+          -e RCLONE_CONFIG_R2_ACCESS_KEY_ID=${CF_ACCESS_KEY} \
+          -e RCLONE_CONFIG_R2_SECRET_ACCESS_KEY=${CF_SECRET_KEY} \
+          -e RCLONE_CONFIG_R2_ENDPOINT=https://${CF_ACCOUNT_ID}.r2.cloudflarestorage.com \
+          rclone/rclone copy r2:${CF_BUCKET_NAME}/minecraft-backups/$LATEST /data/
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: ダウンロードしたアーカイブのファイル名を取得
+      ansible.builtin.find:
+        paths: "{{ mc_dir }}/tmp"
+        patterns: "*.tar.gz"
+      register: minecraft_backup_archive
+
+    - name: アーカイブをpixelmonディレクトリへ展開
+      ansible.builtin.unarchive:
+        src: "{{ minecraft_backup_archive.files[0].path }}"
+        dest: "{{ mc_dir }}/pixelmon/"
+        remote_src: true
+      when: minecraft_backup_archive.matched > 0
+
+    - name: 一時ファイルの削除
+      ansible.builtin.file:
+        path: "{{ mc_dir }}/tmp"
+        state: absent
+
+    - name: 展開したファイルの所有権を修正
+      ansible.builtin.file:
+        path: "{{ mc_dir }}/pixelmon"
+        owner: "{{ minecraft_user.uid }}"
+        group: "{{ minecraft_user.group }}"
+        recurse: true
+
+- name: Minecraft コンテナの起動
+  community.docker.docker_compose_v2:
+    project_src: "{{ mc_dir }}"
+    state: present
+    build: always
+    remove_orphans: true

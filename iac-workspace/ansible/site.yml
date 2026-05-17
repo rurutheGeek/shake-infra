@@ -1,0 +1,71 @@
+---
+- name: 共通設定と自動アップデートの適用
+  hosts: all
+  become: true
+  roles:
+    - { role: common, tags: common }
+
+- name: プロキシノードの構成
+  hosts: proxy_node
+  become: true
+  roles:
+    - { role: proxy, tags: proxy }
+
+- name: 監視エージェントの一括導入
+  hosts: all
+  become: true
+  roles:
+    - { role: exporters, tags: exporters }
+
+- name: メインサーバーのUPS監視とDB/Minecraft/Webの構成
+  hosts: home_node1
+  become: true
+  vars:
+    repo_url_ups: "https://github.com/rurutheGeek/ups-exporter.git"
+    install_dir_ups: "/opt/ups-exporter"
+    run_user_ups: "ansible_admin"
+    pg_dir: /opt/postgres
+    mc_dir: /opt/minecraft
+    app_owner: www-data
+    app_group: www-data
+    app_dir: /var/www/html/shake
+    repo_url_web: git@github.com:rurutheGeek/shake-web.git
+    repo_url_ubsleepy: "https://github.com/rurutheGeek/UBSLEEPY.git"
+    ubsleepy_dir: "/opt/ubsleepy"
+    ubsleepy_r2_bucket: "ubsleepy-app-data" # Terraformで作成された実際のバケット名
+    ubsleepy_r2_object_key: "app_data.zip" # 仮の値。実際のオブジェクトキーに置き換える。
+    ubsleepy_r2_endpoint: "43b2b53511f5cc6221885020999d30e6.r2.cloudflarestorage.com" # Cloudflare R2のエンドポイント
+  roles:
+    - role: ups_exporter
+      vars:
+        ups_exporter_repo_url: "{{ repo_url_ups }}"
+        ups_exporter_install_dir: "{{ install_dir_ups }}"
+        ups_exporter_run_user: "{{ run_user_ups }}"
+      tags: ups_exporter
+    - { role: postgres, tags: postgres }
+    - { role: minecraft, tags: minecraft }
+    - role: web
+      vars:
+        web_repo_url: "{{ repo_url_web }}"
+      tags: web
+    - role: ubsleepy
+      vars:
+        ubsleepy_repo_url: "{{ repo_url_ubsleepy }}"
+
+        ubsleepy_r2_access_key_id: "{{ cf_access_key }}"
+        ubsleepy_r2_secret_access_key: "{{ cf_secret_key }}"
+      tags: ubsleepy
+    - role: ubsleepy_backup
+      vars:
+        ubsleepy_backup_r2_bucket: "{{ ubsleepy_r2_bucket }}"
+        ubsleepy_backup_r2_endpoint: "{{ ubsleepy_r2_endpoint }}"
+        ubsleepy_backup_r2_access_key_id: "{{ cf_access_key }}"
+        ubsleepy_backup_r2_secret_access_key: "{{ cf_secret_key }}"
+        ubsleepy_backup_max_backups: 7 # 7世代のバックアップを保持
+      tags: ubsleepy_backup
+
+- name: 監視サーバーへの監視スタックデプロイ
+  hosts: home_node2
+  become: true
+  roles:
+    - { role: monitoring, tags: monitoring }
