@@ -1,0 +1,79 @@
+---
+# ups_exporter/tasks/main.yml
+- name: 必要なパッケージのインストール
+  ansible.builtin.apt:
+    name:
+      - git
+      - python3-venv
+      - python3-pip
+      - i2c-tools
+      - ufw
+      - curl
+    state: present
+    update_cache: true
+
+- name: Uvのインストール
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  args:
+    creates: /root/.local/bin/uv
+    executable: /bin/bash
+
+- name: Uvバイナリへのシンボリックリンク作成
+  ansible.builtin.file:
+    src: /root/.local/bin/uv
+    dest: /usr/local/bin/uv
+    state: link
+
+- name: 実行ユーザーを i2c と gpio グループに追加
+  ansible.builtin.user:
+    name: "{{ ups_exporter_run_user }}"
+    groups: i2c,gpio
+    append: true
+
+- name: リポジトリのクローン # noqa: latest[git]
+  ansible.builtin.git:
+    repo: "{{ ups_exporter_repo_url }}"
+    dest: "{{ ups_exporter_install_dir }}"
+    force: true
+    version: HEAD
+
+- name: 監視用ディレクトリの所有権をユーザーに変更
+  ansible.builtin.file:
+    path: "{{ ups_exporter_install_dir }}"
+    state: directory
+    owner: "{{ ups_exporter_run_user }}"
+    group: "{{ ups_exporter_run_user }}"
+    recurse: true
+
+- name: Uv venvによるPython仮想環境の作成
+  ansible.builtin.command: uv venv {{ ups_exporter_install_dir }}/venv
+  args:
+    creates: "{{ ups_exporter_install_dir }}/venv"
+
+- name: Uvによる依存関係のインストール
+  ansible.builtin.command: uv pip install --python {{ ups_exporter_install_dir }}/venv -r {{ ups_exporter_install_dir }}/requirements.txt
+  register: ups_exporter_uv_result
+  changed_when: "'Installed' in ups_exporter_uv_result.stdout or 'Uninstalled' in ups_exporter_uv_result.stdout"
+
+- name: Systemdサービスファイルの配置
+  ansible.builtin.copy:
+    src: "{{ ups_exporter_install_dir }}/ups-exporter.service"
+    dest: /etc/systemd/system/ups-exporter.service
+    remote_src: true
+    mode: "0644"
+  notify: Restart ups-exporter
+
+- name: サービスの有効化と起動
+  ansible.builtin.systemd:
+    name: ups-exporter
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: UFWでポート9101の開放 (Tailscaleネットワーク内)
+  community.general.ufw:
+    rule: allow
+    port: "9101"
+    proto: tcp

@@ -1,0 +1,91 @@
+---
+# common/tasks/main.yml
+- name: Pingによる疎通確認
+  ansible.builtin.ping:
+
+- name: Aptパッケージリストの更新
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: セキュリティ自動アップデートツールのインストール
+  ansible.builtin.apt:
+    name:
+      - unattended-upgrades
+      - apt-listchanges
+    state: present
+
+- name: 自動アップデートの基本設定 (20auto-upgrades)
+  ansible.builtin.template:
+    src: common/20auto-upgrades.j2
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: 自動アップデートの詳細設定 (50unattended-upgrades)
+  ansible.builtin.template:
+    src: common/50unattended-upgrades.j2
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Unattended-upgrades サービスの有効化と起動
+  ansible.builtin.systemd:
+    name: unattended-upgrades
+    enabled: true
+    state: started
+
+- name: ライフサイクル管理用ディレクトリの作成
+  ansible.builtin.file:
+    path: /var/lib/lifecycle
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: ライフサイクル監視通知スクリプトの配置
+  ansible.builtin.template:
+    src: common/server-lifecycle-notify.sh.j2
+    dest: /usr/local/bin/server-lifecycle-notify.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: ライフサイクル監視 Systemd サービスの配置
+  ansible.builtin.template:
+    src: common/server-lifecycle.service.j2
+    dest: /etc/systemd/system/server-lifecycle.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: ライフサイクル監視 サービスの有効化と起動
+  ansible.builtin.systemd:
+    name: server-lifecycle
+    daemon_reload: true
+    enabled: true
+    state: started
+
+- name: Raspberry Pi 標準の dphys-swapfile サービスの停止と無効化
+  ansible.builtin.systemd:
+    name: dphys-swapfile
+    enabled: false
+    state: stopped
+  failed_when: false
+
+- name: 現在有効なすべてのスワップの即時無効化 (swapoff)
+  ansible.builtin.command: swapoff -a
+  changed_when: false
+
+- name: fstab からのスワップ設定の完全排除
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1'
+
+- name: 不要な dphys-swapfile パッケージの削除
+  ansible.builtin.apt:
+    name: dphys-swapfile
+    state: absent
+    purge: true

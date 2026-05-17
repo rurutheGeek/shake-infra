@@ -1,0 +1,6 @@
+---
+# ups_exporter/handlers/main.yml
+- name: Restart ups-exporter
+  ansible.builtin.systemd:
+    name: ups-exporter
+    state: restarted

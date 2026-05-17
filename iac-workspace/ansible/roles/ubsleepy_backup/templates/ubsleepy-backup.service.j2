@@ -1,0 +1,18 @@
+[Unit]
+Description=Backup UBSLEEPY save data to Cloudflare R2
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/backup_ubsleepy_r2.sh
+# バックアップスクリプトを実行するユーザー
+User=ansible_admin
+Group=docker
+# スクリプト実行時のカレントディレクトリ
+WorkingDirectory=/opt/ubsleepy
+# awscliのパスを通す
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# 環境変数でcredentialsを渡す場合は以下を追加
+# Environment="AWS_ACCESS_KEY_ID=your_r2_access_key_id"
+# Environment="AWS_SECRET_ACCESS_KEY=your_r2_secret_access_key"

@@ -1,0 +1,54 @@
+---
+# postgres/tasks/main.yml
+- name: データベース用システムユーザー(postgres)の作成
+  ansible.builtin.user:
+    name: postgres
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+    groups: docker
+    append: true
+  register: postgres_system_user
+
+- name: PostgreSQL用ディレクトリの作成
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ postgres_system_user.uid }}"
+    group: "{{ postgres_system_user.group }}"
+    mode: "0750"
+  loop:
+    - "{{ pg_dir }}"
+    - "{{ pg_dir }}/data"
+    - "{{ pg_dir }}/init-db"
+
+- name: PostgreSQL構成ファイル群の配置
+  ansible.builtin.copy:
+    src: postgres/
+    dest: "{{ pg_dir }}/"
+    owner: "{{ postgres_system_user.uid }}"
+    group: "{{ postgres_system_user.group }}"
+    mode: "0640"
+
+- name: PostgreSQL用 .env の生成 (Jinja2テンプレート)
+  ansible.builtin.template:
+    src: postgres/env.j2
+    dest: "{{ pg_dir }}/.env"
+    owner: "{{ postgres_system_user.uid }}"
+    group: "{{ postgres_system_user.group }}"
+    mode: "0600"
+
+- name: PostgreSQL用 .env にUID/GIDを追記
+  ansible.builtin.lineinfile:
+    path: "{{ pg_dir }}/.env"
+    line: "{{ item }}"
+  loop:
+    - "PG_UID={{ postgres_system_user.uid }}"
+    - "PG_GID={{ postgres_system_user.group }}"
+
+- name: PostgreSQL コンテナの起動
+  community.docker.docker_compose_v2:
+    project_src: "{{ pg_dir }}"
+    state: present
+    build: always
+    remove_orphans: true

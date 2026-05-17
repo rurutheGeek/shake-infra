@@ -1,0 +1,56 @@
+# Ignore secrets and environment variables
+.env
+*.env
+.env.*
+
+# Ignore database dumps
+*.sql
+*.sql.gz
+
+# Ignore SSH keys (unless explicitly managed and encrypted by Vault)
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# Ignore Terraform state and local vars
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+*.tfvars.json
+.terraform.lock.hcl
+*.tfstate.lock.info
+backend.hcl
+crash.log
+
+# Ignore Ansible temporary files and passwords
+*.retry
+.vault_pass
+.vault_password
+*vault-pass*
+ansible.log
+.ansible/
+
+# Ignore Python virtual environments and caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.uv/
+
+# Ignore temporary files
+*~
+*.swp
+*.bak
+tmp/
+.DS_Store
+
+# Ignore Zone.Identifier
+*:Zone.Identifier
+
+# Ignore work logs and outputs
+output/

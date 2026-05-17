@@ -1,0 +1,49 @@
+# ==========================================
+# Ansible
+# ==========================================
+# Ansible temporary runtime directories
+.ansible/
+**/ .ansible/
+
+# Ansible retry files
+*.retry
+
+# Ansible Vault password file (never commit this!)
+.vault_pass
+
+# ==========================================
+# Terraform
+# ==========================================
+# Local .terraform directories
+**/.terraform/*
+
+# Local state files (managed by Cloudflare R2 remote state)
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Sensitive variable files
+*.tfvars
+*.tfvars.json
+backend.hcl
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# ==========================================
+# Operating System
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+*:Zone.Identifier

@@ -1,0 +1,40 @@
+---
+- name: 全ノードの初期接続確認とパッケージ更新
+  hosts: all
+  become: true
+  tasks:
+    - name: Pingによる疎通確認
+      ansible.builtin.ping:
+
+    - name: Aptパッケージリストの更新
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: セキュリティ自動アップデートツールのインストール
+      ansible.builtin.apt:
+        name:
+          - unattended-upgrades
+          - apt-listchanges
+        state: present
+
+    - name: 自動アップデートの基本設定 (20auto-upgrades)
+      ansible.builtin.template:
+        src: templates/common/20auto-upgrades.j2
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: 自動アップデートの詳細設定 (50unattended-upgrades)
+      ansible.builtin.template:
+        src: templates/common/50unattended-upgrades.j2
+        dest: /etc/apt/apt.conf.d/50unattended-upgrades
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Unattended-upgrades サービスの有効化と起動
+      ansible.builtin.systemd:
+        name: unattended-upgrades
+        enabled: true
+        state: started

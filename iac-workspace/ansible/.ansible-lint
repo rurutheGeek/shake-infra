@@ -1,0 +1,7 @@
+profile: production
+skip_list:
+  - no-changed-when
+  - command-instead-of-shell
+  - var-naming
+warn_list:
+  - experimental

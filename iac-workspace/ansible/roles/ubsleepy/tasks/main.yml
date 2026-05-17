@@ -1,0 +1,94 @@
+---
+- name: UBSLEEPYのベースディレクトリを作成
+  ansible.builtin.file:
+    path: "{{ ubsleepy_dir }}"
+    state: directory
+    owner: "ansible_admin"
+    group: "ansible_admin"
+    mode: "0755"
+
+- name: UBSLEEPYのリポジトリをクローンまたは更新
+  ansible.builtin.git:
+    repo: "{{ ubsleepy_repo_url }}"
+    dest: "{{ ubsleepy_dir }}"
+    version: main
+    update: yes
+    force: yes
+  notify: Restart UBSLEEPY
+
+- name: Awscliとunzipをインストール
+  ansible.builtin.apt:
+    name:
+      - awscli
+      - unzip
+    state: present
+
+- name: UBSLEEPYのsaveディレクトリの存在を確認
+  ansible.builtin.stat:
+    path: "{{ ubsleepy_dir }}/save"
+  register: ubsleepy_save_dir
+
+- name: R2からapp_data.zipをダウンロード
+  ansible.builtin.shell: |
+    aws s3 cp s3://{{ ubsleepy_r2_bucket }}/{{ ubsleepy_r2_object_key }} {{ ubsleepy_dir }}/{{ ubsleepy_r2_object_key }} \
+      --endpoint-url https://{{ ubsleepy_r2_endpoint }} \
+      --no-verify-ssl
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ ubsleepy_r2_access_key_id }}"
+    AWS_SECRET_ACCESS_KEY: "{{ ubsleepy_r2_secret_access_key }}"
+  args:
+    chdir: "{{ ubsleepy_dir }}"
+  when: not ubsleepy_save_dir.stat.exists
+  changed_when: false # AWS CLIのダウンロードは冪等性があるため常にchangedをfalseにする
+  notify: Restart UBSLEEPY
+
+- name: App_data.zipを展開
+  ansible.builtin.shell: |
+    unzip -o "{{ ubsleepy_dir }}/{{ ubsleepy_r2_object_key }}" -d "{{ ubsleepy_dir }}"
+  args:
+    chdir: "{{ ubsleepy_dir }}"
+  when: not ubsleepy_save_dir.stat.exists
+  changed_when: true
+  notify: Restart UBSLEEPY
+
+- name: App_data.zipをクリーンアップ
+  ansible.builtin.file:
+    path: "{{ ubsleepy_dir }}/{{ ubsleepy_r2_object_key }}"
+    state: absent
+  when: not ubsleepy_save_dir.stat.exists
+  notify: Restart UBSLEEPY
+
+- name: UBSLEEPYディレクトリ内の所有者をansible_adminに変更
+  ansible.builtin.file:
+    path: "{{ ubsleepy_dir }}"
+    state: directory
+    recurse: yes
+    owner: "ansible_admin"
+    group: "ansible_admin"
+  when: not ubsleepy_save_dir.stat.exists
+  notify: Restart UBSLEEPY
+
+
+- name: Docker Composeファイルの配置
+  ansible.builtin.template:
+    src: ubsleepy/docker-compose.yml.j2
+    dest: "{{ ubsleepy_dir }}/docker-compose.yml"
+    owner: "ansible_admin"
+    group: "ansible_admin"
+    mode: "0644"
+  notify: Restart UBSLEEPY
+
+- name: .envファイルの生成
+  ansible.builtin.template:
+    src: ubsleepy/env.j2
+    dest: "{{ ubsleepy_dir }}/.env"
+    owner: "ansible_admin"
+    group: "ansible_admin"
+    mode: "0600"
+  notify: Restart UBSLEEPY
+
+- name: UBSLEEPYコンテナの起動
+  community.docker.docker_compose_v2:
+    project_src: "{{ ubsleepy_dir }}"
+    state: present
+    pull: always
