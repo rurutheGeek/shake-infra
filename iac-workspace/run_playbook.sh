@@ -6,6 +6,9 @@
 set -e
 cd "$(dirname "$0")"
 
+# Vaultパスワードファイルを環境変数に設定（毎回の手入力を省略）
+export ANSIBLE_VAULT_PASSWORD_FILE=".vault_pass"
+
 echo "-------------------------------------------------------------"
 echo "  IaC Workspace - インフラ検証および本番適用ツール"
 echo "-------------------------------------------------------------"
@@ -39,14 +42,12 @@ case "$MAIN_MODE" in
         ;;
       2)
         echo -e "\n>>> 構文（シンタックス）チェックを実行します..."
-        echo "※Ansible Vault のパスワードを入力してください。"
-        ansible-playbook -i ansible/inventory.ini ansible/site.yml --syntax-check --ask-vault-pass
+        ansible-playbook -i ansible/inventory.ini ansible/site.yml --syntax-check
         echo ">>> 全Playbookの構文にエラーはありません。"
         ;;
       3)
         echo -e "\n>>> 模擬実行（Check Mode）を開始します..."
-        echo "※Ansible Vault のパスワードを入力してください。"
-        ansible-playbook -i ansible/inventory.ini ansible/site.yml --check --ask-vault-pass
+        ansible-playbook -i ansible/inventory.ini ansible/site.yml --check
         echo ">>> 模擬実行が完了しました。"
         ;;
       *)
@@ -75,8 +76,7 @@ case "$MAIN_MODE" in
         read -r CONFIRM
         if [[ "$CONFIRM" =~ ^[Yy] ]]; then
           echo ">>> 本番環境への適用を開始します..."
-          echo "※Ansible Vault のパスワードを入力してください。"
-          ansible-playbook -i ansible/inventory.ini ansible/site.yml --ask-vault-pass
+          ansible-playbook -i ansible/inventory.ini ansible/site.yml
           echo ">>> 適用処理が正常に完了しました。"
         else
           echo ">>> 中断しました。"
@@ -84,27 +84,27 @@ case "$MAIN_MODE" in
         ;;
       2)
         echo -e "\n>>> Webアプリのみデプロイを開始します..."
-        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags web --ask-vault-pass
+        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags web
         ;;
       3)
         echo -e "\n>>> PostgreSQLのみデプロイを開始します..."
-        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags postgres --ask-vault-pass
+        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags postgres
         ;;
       4)
         echo -e "\n>>> Minecraftのみデプロイを開始します..."
-        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags minecraft --ask-vault-pass
+        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags minecraft
         ;;
       5)
         echo -e "\n>>> Discord Botのみデプロイを開始します..."
-        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags ubsleepy --ask-vault-pass
+        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags ubsleepy
         ;;
       6)
         echo -e "\n>>> 自動バックアップのみデプロイを開始します..."
-        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags ubsleepy_backup --ask-vault-pass
+        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags ubsleepy_backup
         ;;
       7)
         echo -e "\n>>> UPS監視のみデプロイを開始します..."
-        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags ups_exporter --ask-vault-pass
+        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags ups_exporter
         ;;
       *)
         echo "[Error] 無効な番号です。"; exit 1 ;;
@@ -146,8 +146,7 @@ case "$MAIN_MODE" in
         read -r CONFIRM
         if [[ "$CONFIRM" =~ ^[Yy] ]]; then
           echo -e "\n>>> 安全なシャットダウンを開始します..."
-          echo "※Ansible Vault のパスワードを入力してください。"
-          ansible-playbook -i ansible/inventory.ini ansible/playbooks/shutdown_servers.yml $LIMIT --ask-vault-pass
+          ansible-playbook -i ansible/inventory.ini ansible/playbooks/shutdown_servers.yml $LIMIT
           echo ">>> シャットダウン命令の送信が完了しました。"
         else
           echo ">>> 中断しました。"
@@ -173,8 +172,7 @@ case "$MAIN_MODE" in
           *) echo "[Error] 無効な番号です。"; exit 1 ;;
         esac
         echo -e "\n>>> 安全な再起動を開始します..."
-        echo "※Ansible Vault のパスワードを入力してください。"
-        ansible $HOSTS -i ansible/inventory.ini -m reboot --become --ask-vault-pass -B 2 -P 0
+        ansible $HOSTS -i ansible/inventory.ini -m reboot --become -B 2 -P 0
         echo ">>> 対象ホストへ再起動命令を送信しました。OSが完全に起動してVPNに再接続されるまで数分間お待ちください。"
         ;;
       *)

@@ -1,3 +1,5 @@
+ansible_python_interpreter: auto_silent
+
 db_user_reader: pkdb_reader
 db_user_editor: pkdb_editor
 db_name: sleepy_pkdb

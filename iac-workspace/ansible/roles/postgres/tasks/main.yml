@@ -38,14 +38,6 @@
     group: "{{ postgres_system_user.group }}"
     mode: "0600"
 
-- name: PostgreSQL用 .env にUID/GIDを追記
-  ansible.builtin.lineinfile:
-    path: "{{ pg_dir }}/.env"
-    line: "{{ item }}"
-  loop:
-    - "PG_UID={{ postgres_system_user.uid }}"
-    - "PG_GID={{ postgres_system_user.group }}"
-
 - name: PostgreSQL コンテナの起動
   community.docker.docker_compose_v2:
     project_src: "{{ pg_dir }}"

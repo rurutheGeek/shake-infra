@@ -4,8 +4,6 @@
   ansible.builtin.apt:
     name:
       - git
-      - python3-venv
-      - python3-pip
       - i2c-tools
       - ufw
       - curl
