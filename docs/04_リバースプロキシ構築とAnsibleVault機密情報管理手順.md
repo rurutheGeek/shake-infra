@@ -523,8 +523,9 @@ ansible-vault encrypt ~/iac-workspace/ansible/secrets/web/key.pem
     version: HEAD
   become: true
   become_user: "{{ app_owner }}"
+  register: web_git_sync_result
 
-- name: ソースコードを本番ディレクトリへ配置（同期）
+- name: ソースコードを本番ディレクトリへ配置（同期） # noqa: no-handler
   ansible.posix.synchronize:
     src: "{{ app_dir }}/src_tmp/{{ item }}"
     dest: "{{ app_dir }}/"
@@ -534,6 +535,7 @@ ansible-vault encrypt ~/iac-workspace/ansible/secrets/web/key.pem
   loop:
     - html
     - quiz
+  when: web_git_sync_result.changed
 
 - name: インフラ設定ファイル群（Docker Compose等）の配置
   ansible.builtin.copy:

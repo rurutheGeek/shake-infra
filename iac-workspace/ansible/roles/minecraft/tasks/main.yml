@@ -37,14 +37,6 @@
     group: "{{ minecraft_user.group }}"
     mode: "0600"
 
-- name: Minecraft用 .env にUID/GIDを追記
-  ansible.builtin.lineinfile:
-    path: "{{ mc_dir }}/.env"
-    line: "{{ item }}"
-  loop:
-    - "MC_UID={{ minecraft_user.uid }}"
-    - "MC_GID={{ minecraft_user.group }}"
-
 - name: 移行先Minecraftワールドデータの存在確認
   ansible.builtin.stat:
     path: "{{ mc_dir }}/pixelmon/world"
