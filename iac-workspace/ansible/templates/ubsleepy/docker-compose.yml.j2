@@ -1,0 +1,11 @@
+services:
+  bot:
+    image: python:3.13
+    container_name: ubsleepy_bot
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: bash -c "pip install --no-cache-dir -r setup/requirements.txt && python main.py"
+    restart: unless-stopped
+    env_file:
+      - .env

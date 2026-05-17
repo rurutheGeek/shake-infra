@@ -1,0 +1,121 @@
+#!/bin/bash
+# R2にUBSLEEPYのセーブデータをバックアップするスクリプト
+
+# --- 設定項目 ---
+BACKUP_DIR="/opt/ubsleepy"
+SAVE_DATA_PATH="${BACKUP_DIR}/save"
+CONFIG_FILE_PATH="${BACKUP_DIR}/config.json"
+POKEMON_SENRYU_PATH="${BACKUP_DIR}/resource/pokemon_senryu.csv"
+
+R2_BUCKET="{{ ubsleepy_backup_r2_bucket }}"
+R2_ENDPOINT="https://{{ ubsleepy_backup_r2_endpoint }}"
+R2_ACCESS_KEY_ID="{{ ubsleepy_backup_r2_access_key_id }}"
+R2_SECRET_ACCESS_KEY="{{ ubsleepy_backup_r2_secret_access_key }}"
+R2_OBJECT_PREFIX="ubsleepy-save-backup/" # R2上のパス
+
+MAX_BACKUPS="{{ ubsleepy_backup_max_backups }}" # 保持するバックアップの最大数
+DISCORD_WEBHOOK_URL="{{ ubsleepy_backup_discord_webhook }}"
+
+# --- Discord通知関数 ---
+{% raw %}
+send_discord_alert() {
+    local status_type="$1" # "SUCCESS" or "ERROR" or "ALERT"
+    local message="$2"
+    local color=32768 # デフォルト緑 (Dec: 32768, Hex: 008000)
+    
+    if [ "${status_type}" = "ERROR" ]; then
+        color=16711680 # 赤 (Dec: 16711680, Hex: FF0000)
+    elif [ "${status_type}" = "ALERT" ]; then
+        color=16753920 # 橙 (Dec: 16753920, Hex: FFA500)
+    fi
+
+    # Discord Webhookが未設定の場合はスキップ
+    if [ -z "${DISCORD_WEBHOOK_URL}" ] || [ "${DISCORD_WEBHOOK_URL}" = "https://discordapp.com/api/webhooks/..." ]; then
+        return 0
+    fi
+
+    local payload=$(cat <<EOF
+{
+  "embeds": [
+    {
+      "title": "UBSLEEPY バックアップ・監視アラート [\${status_type}]",
+      "description": "\${message}",
+      "color": \${color},
+      "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    }
+  ]
+}
+EOF
+)
+
+    curl -s -H "Content-Type: application/json" -X POST -d "${payload}" "${DISCORD_WEBHOOK_URL}" > /dev/null
+}
+{% endraw %}
+
+# --- 環境変数設定 (awscli用) ---
+export AWS_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
+export AWS_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
+
+# --- バックアップ処理 ---
+TIMESTAMP=$(date +"%Y%m%d%H%M%S")
+BACKUP_FILE="ubsleepy-save-${TIMESTAMP}.tar.gz"
+BACKUP_PATH="/tmp/${BACKUP_FILE}"
+
+echo "[$TIMESTAMP] ubsleepy_botコンテナの稼働状態を確認します..."
+BOT_STATUS=$(docker inspect -f '{% raw %}{{.State.Running}}{% endraw %}' ubsleepy_bot 2>&1)
+
+if [ $? -ne 0 ] || [ "${BOT_STATUS}" != "true" ]; then
+    echo "[$TIMESTAMP] 警告: ubsleepy_botコンテナが停止しているか、存在しません。"
+    send_discord_alert "ALERT" "Discord Botコンテナ (ubsleepy_bot) が正常に稼働していません。ステータス: ${BOT_STATUS}"
+else
+    echo "[$TIMESTAMP] ubsleepy_botコンテナは正常に稼働しています。"
+fi
+
+echo "[$TIMESTAMP] UBSLEEPYセーブデータのバックアップを開始します..."
+
+# 必要なファイルとディレクトリを圧縮
+tar -czvf "${BACKUP_PATH}" -C "${BACKUP_DIR}" save config.json resource/pokemon_senryu.csv
+
+if [ $? -ne 0 ]; then
+    echo "[$TIMESTAMP] エラー: バックアップファイルの作成に失敗しました。"
+    send_discord_alert "ERROR" "バックアップ用アーカイブの圧縮作成に失敗しました。"
+    exit 1
+fi
+
+echo "[$TIMESTAMP] バックアップファイル '${BACKUP_PATH}' を作成しました。"
+
+# R2にアップロード
+echo "[$TIMESTAMP] バックアップファイルをR2にアップロード中..."
+aws s3 cp "${BACKUP_PATH}" "s3://${R2_BUCKET}/${R2_OBJECT_PREFIX}${BACKUP_FILE}" \
+    --endpoint-url "${R2_ENDPOINT}"
+
+if [ $? -ne 0 ]; then
+    echo "[$TIMESTAMP] エラー: R2へのアップロードに失敗しました。"
+    send_discord_alert "ERROR" "作成したバックアップアーカイブのCloudflare R2へのアップロードに失敗しました。"
+    rm -f "${BACKUP_PATH}"
+    exit 1
+fi
+
+echo "[$TIMESTAMP] バックアップファイルをR2にアップロードしました: s3://${R2_BUCKET}/${R2_OBJECT_PREFIX}${BACKUP_FILE}"
+
+# ローカルの一時ファイルを削除
+rm -f "${BACKUP_PATH}"
+echo "[$TIMESTAMP] ローカルの一時ファイルを削除しました。"
+
+# --- 世代管理 (古いバックアップの削除) ---
+echo "[$TIMESTAMP] R2上の古いバックアップを削除します (最大${MAX_BACKUPS}世代保持)..."
+
+# R2上のバックアップファイルをリストし、古いものを削除
+BACKUPS_TO_DELETE=$(aws s3 ls "s3://${R2_BUCKET}/${R2_OBJECT_PREFIX}" --recursive --endpoint-url "${R2_ENDPOINT}" | awk '{print $NF}' | grep "${R2_OBJECT_PREFIX}.*\.tar\.gz" | sort | head -n -"${MAX_BACKUPS}")
+
+if [ -n "${BACKUPS_TO_DELETE}" ]; then
+    for old_backup in ${BACKUPS_TO_DELETE}; do
+        echo "[$TIMESTAMP] 古いバックアップを削除中: s3://${R2_BUCKET}/${old_backup}"
+        aws s3 rm "s3://${R2_BUCKET}/${old_backup}" --endpoint-url "${R2_ENDPOINT}"
+    done
+else
+    echo "[$TIMESTAMP] 削除対象の古いバックアップはありませんでした。"
+fi
+
+echo "[$TIMESTAMP] バックアップ処理が完了しました。"
+send_discord_alert "SUCCESS" "UBSLEEPYセーブデータのバックアップおよび世代管理（最大${MAX_BACKUPS}世代）が正常に完了しました。\\nファイル名: ${BACKUP_FILE}"

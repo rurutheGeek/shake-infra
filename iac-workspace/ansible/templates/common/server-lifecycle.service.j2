@@ -1,0 +1,13 @@
+[Unit]
+Description=Server Lifecycle Discord Notification Service
+After=network-online.target tailscaled.service
+Wants=network-online.target tailscaled.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/server-lifecycle-notify.sh start
+ExecStop=/usr/local/bin/server-lifecycle-notify.sh stop
+
+[Install]
+WantedBy=multi-user.target

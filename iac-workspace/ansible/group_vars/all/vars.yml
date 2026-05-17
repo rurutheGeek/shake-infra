@@ -1,0 +1,13 @@
+db_user_reader: pkdb_reader
+db_user_editor: pkdb_editor
+db_name: sleepy_pkdb
+db_port: 5432
+db_host: 192.168.10.122
+
+mc_resource_pack_url: https://ruruthegeek.dpdns.org/resource/mc/shakeserver_PixelmonReforged_resourcepack.zip
+mc_resource_pack_hash: 0183362fff4438540c7ef0ad3d73ac65779d1cc3
+cf_account_id: 43b2b53511f5cc6221885020999d30e6
+cf_bucket_name: shakeserver
+
+# Discord電源状態通知用のWebhookマッピング
+discord_webhook_url: "{{ ubsleepy_backup_discord_webhook }}"

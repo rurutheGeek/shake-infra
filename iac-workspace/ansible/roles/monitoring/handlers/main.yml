@@ -1,0 +1,10 @@
+---
+# monitoring/handlers/main.yml
+- name: Restart monitoring containers
+  community.docker.docker_compose_v2:
+    project_src: /opt/monitoring
+    files:
+      - monitoring-compose.yml
+    state: present
+    build: always
+    recreate: always

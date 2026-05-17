@@ -1,0 +1,39 @@
+---
+- name: 全サーバーの安全なシャットダウン（コンテナ安全停止からOSシャットダウンまで自動実行）
+  hosts: all
+  become: true
+  tasks:
+    - name: Minecraftコンテナを安全に停止
+      community.docker.docker_container:
+        name: shake_minecraft-pixelmon1.21.1
+        state: stopped
+      when: "'home_node1' in group_names"
+      ignore_errors: true
+
+    - name: PostgreSQL関連コンテナを安全に停止
+      community.docker.docker_container:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - shake_postgres
+        - shake_adminer
+        - shake_postgres-backup
+      when: "'home_node1' in group_names"
+      ignore_errors: true
+
+    - name: 監視スタックコンテナを安全に停止
+      community.docker.docker_container:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - prometheus
+        - grafana
+        - blackbox_exporter
+      when: "'home_node2' in group_names"
+      ignore_errors: true
+
+    - name: ホストOSをシャットダウン
+      ansible.builtin.command: shutdown -h now
+      async: 1
+      poll: 0
+      ignore_errors: true
