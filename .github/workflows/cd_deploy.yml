@@ -1,6 +1,7 @@
 name: Auto Deploy from Apps
 
 on:
+  workflow_dispatch:
   repository_dispatch:
     types:
       - deploy_ubsleepy
