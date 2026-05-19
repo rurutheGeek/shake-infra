@@ -66,8 +66,9 @@ case "$MAIN_MODE" in
     echo " [5] Discord Bot のみデプロイ"
     echo " [6] 自動バックアップ のみデプロイ"
     echo " [7] UPS監視 のみデプロイ"
+    echo " [8] GitHub Runner (CI/CD) のセットアップ"
     echo "-------------------------------------------------------------"
-    printf "デプロイ対象の番号を入力してください (1-7): "
+    printf "デプロイ対象の番号を入力してください (1-8): "
     read -r SUB_MODE
     case "$SUB_MODE" in
       1)
@@ -105,6 +106,22 @@ case "$MAIN_MODE" in
       7)
         echo -e "\n>>> UPS監視のみデプロイを開始します..."
         ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags ups_exporter
+        ;;
+      8)
+        echo -e "\n>>> GitHub Runnerのセットアップを開始します"
+        printf "GitHubインフラリポジトリのURLを入力してください (例: https://github.com/rurutheGeek/infra-repo): "
+        read -r REPO_URL
+        printf "Runner登録用トークンを入力してください: "
+        read -r RUNNER_TOKEN
+        
+        if [ -z "$REPO_URL" ] || [ -z "$RUNNER_TOKEN" ]; then
+          echo "[Error] URLまたはトークンが入力されていません。中断します。"
+          exit 1
+        fi
+        
+        echo -e "\n>>> Runnerのデプロイを実行します..."
+        ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags github_runner -e "github_repo_url=$REPO_URL" -e "github_runner_token=$RUNNER_TOKEN"
+        echo ">>> Runnerのセットアップが完了しました！"
         ;;
       *)
         echo "[Error] 無効な番号です。"; exit 1 ;;
