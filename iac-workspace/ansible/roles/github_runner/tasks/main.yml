@@ -1,4 +1,34 @@
 ---
+- name: Runner用の依存パッケージ（Ansible等）をインストール
+  become: true
+  apt:
+    name:
+      - ansible
+      - curl
+    state: present
+    update_cache: yes
+
+- name: Runner環境用の .ssh ディレクトリを作成
+  become: false
+  file:
+    path: "~/.ssh"
+    state: directory
+    mode: '0700'
+
+- name: Ansible用SSH秘密鍵をRunner環境へ配置
+  become: false
+  copy:
+    src: "{{ ansible_ssh_private_key_file | default('~/.ssh/id_rsa') }}"
+    dest: "~/.ssh/id_rsa"
+    mode: '0600'
+
+- name: Ansible VaultパスワードファイルをRunner環境へ配置
+  become: false
+  copy:
+    src: "{{ playbook_dir }}/../.vault_pass"
+    dest: "~/.vault_pass"
+    mode: '0600'
+
 - name: Runnerのディレクトリを作成
   become: false
   file:
