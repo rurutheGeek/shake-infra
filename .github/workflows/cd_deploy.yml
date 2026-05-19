@@ -1,0 +1,35 @@
+name: Auto Deploy from Apps
+
+on:
+  repository_dispatch:
+    types:
+      - deploy_ubsleepy
+      - deploy_shakeweb
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      # Vaultパスワードを環境変数からファイルに書き出す
+      - name: Setup Vault Password
+        run: echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > ./iac-workspace/.vault_pass
+
+      - name: Deploy ubsleepy
+        if: github.event.action == 'deploy_ubsleepy'
+        run: |
+          cd iac-workspace
+          ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags ubsleepy
+
+      - name: Deploy shake-web
+        if: github.event.action == 'deploy_shakeweb'
+        run: |
+          cd iac-workspace
+          ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags web
+
+      # 処理が終わったらパスワードファイルを削除
+      - name: Cleanup Vault Password
+        if: always()
+        run: rm -f ./iac-workspace/.vault_pass
