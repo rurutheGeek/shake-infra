@@ -33,3 +33,19 @@ jobs:
       - name: Cleanup Vault Password
         if: always()
         run: rm -f ./iac-workspace/.vault_pass
+
+      - name: Discord Notification (Success)
+        if: success()
+        run: |
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d '{"content": "[SUCCESS] デプロイ成功\n対象: `'"${{ github.event.action }}"'`\nRunner: `tarakoserver`\n詳細: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
+               ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      - name: Discord Notification (Failure)
+        if: failure()
+        run: |
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d '{"content": "[FAILED] デプロイ失敗\n対象: `'"${{ github.event.action }}"'`\nRunner: `tarakoserver`\nログを確認してください: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
+               ${{ secrets.DISCORD_WEBHOOK_URL }}
