@@ -69,3 +69,5 @@
   become: true
   roles:
     - { role: monitoring, tags: monitoring }
+    - { role: github_runner, tags: github_runner }
+

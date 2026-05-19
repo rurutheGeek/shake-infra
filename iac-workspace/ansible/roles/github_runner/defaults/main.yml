@@ -1,0 +1,7 @@
+---
+github_runner_version: "2.316.1"
+github_runner_arch: "arm64"
+github_runner_dir: "/home/{{ ansible_user }}/actions-runner"
+# 以下は実行時に --extra-vars で渡すか、Vaultで定義する
+# github_runner_token: ""
+# github_repo_url: ""
