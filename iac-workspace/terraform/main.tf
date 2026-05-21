@@ -196,7 +196,7 @@ resource "cloudflare_workers_script" "failover_script" {
   account_id = var.cloudflare_account_id
   name       = "maintenance-failover"
   content    = replace(file("${path.module}/worker_scripts/failover_worker.js"), "__MAINTENANCE_HTML_CONTENT__", file("${path.module}/worker_scripts/maintenance.html"))
-  
+
   module = true
 }
 
