@@ -22,6 +22,11 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v3
 
+      - name: Install Ansible Collections
+        run: |
+          cd iac-workspace/ansible
+          ansible-galaxy collection install -r requirements.yml
+
       - name: Deploy ubsleepy
         if: github.event.action == 'deploy_ubsleepy' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'ubsleepy')
         run: |
