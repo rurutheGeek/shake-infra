@@ -5,6 +5,7 @@ services:
     network_mode: "host"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus_rules.yml:/etc/prometheus/prometheus_rules.yml
       - prometheus_data:/prometheus
     restart: unless-stopped
 
@@ -14,6 +15,14 @@ services:
     network_mode: "host"
     volumes:
       - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    network_mode: "host"
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
     restart: unless-stopped
 
   blackbox_exporter:
