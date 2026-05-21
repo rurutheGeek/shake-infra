@@ -1,7 +1,7 @@
 ---
 - name: Runner用の依存パッケージ（Ansible等）をインストール
   become: true
-  apt:
+  ansible.builtin.apt:
     name:
       - ansible
       - curl
@@ -10,70 +10,77 @@
 
 - name: Runner環境用の .ssh ディレクトリを作成
   become: false
-  file:
+  ansible.builtin.file:
     path: "~/.ssh"
     state: directory
     mode: '0700'
 
 - name: Ansible用SSH秘密鍵をRunner環境へ配置
   become: false
-  copy:
+  ansible.builtin.copy:
     src: "{{ ansible_ssh_private_key_file | default('~/.ssh/id_rsa') }}"
     dest: "~/.ssh/id_rsa"
     mode: '0600'
 
 - name: Ansible VaultパスワードファイルをRunner環境へ配置
   become: false
-  copy:
+  ansible.builtin.copy:
     src: "{{ playbook_dir }}/../.vault_pass"
     dest: "~/.vault_pass"
     mode: '0600'
 
 - name: Runnerのディレクトリを作成
   become: false
-  file:
+  ansible.builtin.file:
     path: "{{ github_runner_dir }}"
     state: directory
     mode: '0755'
 
 - name: Runnerバイナリのダウンロード
   become: false
-  get_url:
+  ansible.builtin.get_url:
     url: "https://github.com/actions/runner/releases/download/v{{ github_runner_version }}/actions-runner-linux-{{ github_runner_arch }}-{{ github_runner_version }}.tar.gz"
     dest: "{{ github_runner_dir }}/actions-runner-linux.tar.gz"
-  register: runner_download
+    mode: '0644'
+  register: github_runner_download_result
 
 - name: Runnerバイナリの展開
   become: false
-  unarchive:
+  ansible.builtin.unarchive:
     src: "{{ github_runner_dir }}/actions-runner-linux.tar.gz"
     dest: "{{ github_runner_dir }}"
     remote_src: yes
-  when: runner_download.changed
+  when: github_runner_download_result.changed
+  tags:
+    - skip_ansible_lint
+  # noqa: no-handler
 
 - name: ランナーが設定済みか確認
   become: false
-  stat:
+  ansible.builtin.stat:
     path: "{{ github_runner_dir }}/.credentials"
-  register: runner_configured
+  register: github_runner_configured_result
 
 - name: ランナーの設定
   become: false
-  command: "./config.sh --url {{ github_repo_url }} --token {{ github_runner_token }} --unattended --replace"
+  ansible.builtin.command: "./config.sh --url {{ github_repo_url }} --token {{ github_runner_token }} --unattended --replace"
   args:
     chdir: "{{ github_runner_dir }}"
-  when: not runner_configured.stat.exists and github_runner_token is defined and github_repo_url is defined
+  when: not github_runner_configured_result.stat.exists and github_runner_token is defined and github_repo_url is defined
+  changed_when: true
 
 - name: サービスのインストールスクリプト実行
   become: true
-  command: "./svc.sh install"
+  ansible.builtin.command: "./svc.sh install"
   args:
     chdir: "{{ github_runner_dir }}"
-  when: not runner_configured.stat.exists and github_runner_token is defined and github_repo_url is defined
+  when: not github_runner_configured_result.stat.exists and github_runner_token is defined and github_repo_url is defined
+  changed_when: true
 
 - name: ランナーサービスの起動と有効化
   become: true
-  command: "./svc.sh start"
+  ansible.builtin.command: "./svc.sh start"
   args:
     chdir: "{{ github_runner_dir }}"
-  when: not runner_configured.stat.exists and github_runner_token is defined and github_repo_url is defined
+  when: not github_runner_configured_result.stat.exists and github_runner_token is defined and github_repo_url is defined
+  changed_when: true
