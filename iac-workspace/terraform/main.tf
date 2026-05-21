@@ -17,6 +17,10 @@ terraform {
       source  = "cloudflare/cloudflare"
       version = "~> 4.0"
     }
+    github = {
+      source  = "integrations/github"
+      version = "~> 6.0"
+    }
   }
 }
 
@@ -52,7 +56,7 @@ variable "cloudflare_account_id" {
 resource "cloudflare_record" "mc_node" {
   zone_id = var.cloudflare_zone_id
   name    = "mc"
-  value   = "133.80.183.83"
+  content = "133.80.183.83"
   type    = "A"
   proxied = false
 }
@@ -61,7 +65,7 @@ resource "cloudflare_record" "mc_node" {
 resource "cloudflare_record" "root_domain" {
   zone_id = var.cloudflare_zone_id
   name    = "ruruthegeek.dpdns.org"
-  value   = "133.80.183.83"
+  content = "133.80.183.83"
   type    = "A"
   proxied = true
 }
@@ -70,7 +74,7 @@ resource "cloudflare_record" "root_domain" {
 resource "cloudflare_record" "www_domain" {
   zone_id = var.cloudflare_zone_id
   name    = "www"
-  value   = "133.80.183.83"
+  content = "133.80.183.83"
   type    = "A"
   proxied = true
 }
@@ -107,5 +111,73 @@ resource "cloudflare_r2_bucket" "shakeserver_backup_bucket" {
 resource "cloudflare_r2_bucket" "ubsleepy_app_data_bucket" {
   account_id = var.cloudflare_account_id
   name       = "ubsleepy-app-data" # UBSLEEPY用のバケット名
-  location   = "APAC" # 任意のロケーション
+  location   = "APAC"              # 任意のロケーション
 }
+# ==========================================
+# GitHub Provider & Secrets Configuration
+# ==========================================
+
+provider "github" {
+  token = var.github_token
+  owner = var.github_owner
+}
+
+variable "github_token" {
+  description = "GitHub Personal Access Token for Terraform (Requires repo permissions)"
+  type        = string
+  sensitive   = true
+}
+
+variable "github_owner" {
+  description = "GitHub Username or Organization"
+  type        = string
+  default     = "rurutheGeek"
+}
+
+variable "discord_webhook_url" {
+  description = "Discord Webhook URL for CI/CD Notifications"
+  type        = string
+  sensitive   = true
+}
+
+variable "infra_repo_dispatch_token" {
+  description = "PAT used by App Repos to trigger dispatch on Infra Repo"
+  type        = string
+  sensitive   = true
+}
+
+# ------------------------------------------
+# インフラリポジトリ (shake-infra)
+# ------------------------------------------
+data "github_repository" "infra" {
+  name = "shake-infra"
+}
+
+resource "github_actions_secret" "infra_discord_webhook" {
+  repository      = data.github_repository.infra.name
+  secret_name     = "DISCORD_WEBHOOK_URL"
+  plaintext_value = var.discord_webhook_url
+}
+
+# ------------------------------------------
+# アプリリポジトリ (ubsleepy 等)
+# ------------------------------------------
+data "github_repository" "ubsleepy" {
+  name = "ubsleepy"
+}
+
+resource "github_actions_secret" "ubsleepy_dispatch_token" {
+  repository      = data.github_repository.ubsleepy.name
+  secret_name     = "INFRA_REPO_DISPATCH_TOKEN"
+  plaintext_value = var.infra_repo_dispatch_token
+}
+
+# 必要に応じて他のアプリリポジトリ (shakeweb等) もコメントアウトを外して追加可能
+# data "github_repository" "shakeweb" {
+#   name = "shakeweb"
+# }
+# resource "github_actions_secret" "shakeweb_dispatch_token" {
+#   repository      = data.github_repository.shakeweb.name
+#   secret_name     = "INFRA_REPO_DISPATCH_TOKEN"
+#   plaintext_value = var.infra_repo_dispatch_token
+# }

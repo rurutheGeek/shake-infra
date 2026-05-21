@@ -169,43 +169,107 @@ jobs:
 
 > ※補足: `tarakoserver` にデプロイされるGitHub Runnerには、Ansibleが他のサーバーへSSH接続するための秘密鍵（`id_rsa`）と、機密変数を復号するためのVaultパスワード（`.vault_pass`）が自動構築時にセキュアに配置されるため、これらをGitHub Secretsに登録する必要はない。
 
-## 7. アプリ側のマージ条件について（mainブランチは必須か？）
-
-結論から言うと、必ずしも main ブランチである必要はない。
-
-アプリ側の `.github/workflows/deploy.yml`（APIを送信するワークフロー）の `on`（トリガー条件）を書き換えることで、どのブランチのアクションでデプロイするかを自由に決定できる。
-
-### [パターンA] mainにマージされた時のみデプロイ（推奨・本番環境向け）
-最も一般的な構成。品質が担保されたコードのみが本番サーバーに反映される。
-```yaml
-on:
-  push:
-    branches:
-      - main
-```
-
-### [パターンB] 特定の開発用ブランチが更新された時にデプロイ（検証環境向け）
-たとえば `develop` や `staging` というブランチを作っておき、そこにPushされた際にデプロイする設定。
-```yaml
-on:
-  push:
-    branches:
-      - develop
-```
-
-### [パターンC] 手動で任意のタイミングでデプロイ
-ブランチに関わらず、GitHubのブラウザ画面から「Run workflow」ボタンを押した時にだけ実行する設定。
-```yaml
-on:
-  workflow_dispatch:
-```
-
-共同開発の初期段階で、頻繁にサーバー上で動作確認をしたい場合は、パターンB（開発用ブランチ）やパターンC（手動実行）を組み合わせるとスムーズである。
-
-## 8. Discord通知のセットアップ手順
+## 7. Discord通知のセットアップ手順
 
 1. 通知を送信したいDiscordのチャンネルの「チャンネルの編集（歯車マーク）」を開く。
 2. 「連携サービス」>「ウェブフック」へ進み、「新しいウェブフック」を作成する。
 3. ウェブフックの名前（例: `GitHub Deploy Bot`）を設定し、「ウェブフックURLをコピー」をクリックする。
 4. インフラリポジトリの `Settings > Secrets and variables > Actions` を開く。
 5. `New repository secret` を作成し、名前に `DISCORD_WEBHOOK_URL`、値にコピーしたURLを貼り付けて保存する。
+
+## 8. インフラコードのCI自動テスト
+
+本リポジトリのAnsibleやTerraformのコード品質を保ち、デプロイ時の予期せぬエラーを防ぐため、Pull Request時に自動でコードテスト（CI）が実行されるように設定します。
+
+### CIワークフローの概要
+
+`.github/workflows/ci_infra.yml` に定義されたCIは以下のテストを自動で行います。
+
+*   **トリガー**: Pull Requestが `main` ブランチに対して作成または更新された時、および `main` ブランチに直接プッシュされた時（`iac-workspace` ディレクトリ配下の変更が対象）。
+*   **実行環境**: GitHub Actionsの `ubuntu-latest` 環境。
+*   **テスト内容**:
+    *   **Ansibleの構文チェックとLint**:
+        *   Ansibleコードの文法エラーがないか (`ansible-playbook --syntax-check`)。
+        *   Ansibleのベストプラクティスに準拠しているか (`ansible-lint`)。
+    *   **Terraformのフォーマットとバリデーション**:
+        *   Terraformコードの記述スタイルが標準的か (`terraform fmt -check`)。
+        *   Terraformのコードに論理的な誤りや設定ミスがないか (`terraform validate`)。
+
+### ワークフローファイルの内容
+
+`.github/workflows/ci_infra.yml`
+```yaml
+name: CI for Infrastructure
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'iac-workspace/**'
+      - '.github/workflows/ci_infra.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'iac-workspace/**'
+      - '.github/workflows/ci_infra.yml'
+
+jobs:
+  ansible-ci:
+    name: Ansible Lint & Syntax Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: iac-workspace/ansible
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Ansible and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible-core ansible-lint
+
+      - name: Install Ansible Collections
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Run Ansible Syntax Check
+        # インベントリがないと構文チェックが通らないモジュールがあるためダミーインベントリを使用（実接続はしない）
+        run: ansible-playbook -i inventory.ini site.yml --syntax-check
+
+      - name: Run Ansible Lint
+        # .ansible-lint の設定を読み込ませるため上の階層から実行
+        working-directory: iac-workspace
+        run: ansible-lint ansible/site.yml
+
+  terraform-ci:
+    name: Terraform Format & Validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: iac-workspace/terraform
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Format Check
+        run: terraform fmt -check
+
+      - name: Terraform Init
+        # S3バックエンド等に接続せずに初期化
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+```
+
+このCIを導入することで、インフラコードの変更に対する品質と安全性が大幅に向上します。

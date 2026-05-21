@@ -1,0 +1,71 @@
+name: CI for Infrastructure
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'iac-workspace/**'
+      - '.github/workflows/ci_infra.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'iac-workspace/**'
+      - '.github/workflows/ci_infra.yml'
+
+jobs:
+  ansible-ci:
+    name: Ansible Lint & Syntax Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: iac-workspace/ansible
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Ansible and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible-core ansible-lint
+
+      - name: Install Ansible Collections
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Run Ansible Syntax Check
+        # インベントリがないと構文チェックが通らないモジュールがあるためダミーインベントリを使用（実接続はしない）
+        run: ansible-playbook -i inventory.ini site.yml --syntax-check
+
+      - name: Run Ansible Lint
+        # .ansible-lint の設定を読み込ませるため上の階層から実行
+        working-directory: iac-workspace
+        run: ansible-lint ansible/site.yml
+
+  terraform-ci:
+    name: Terraform Format & Validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: iac-workspace/terraform
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Format Check
+        run: terraform fmt -check
+
+      - name: Terraform Init
+        # S3バックエンド等に接続せずに初期化
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
