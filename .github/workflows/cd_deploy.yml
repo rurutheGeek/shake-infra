@@ -18,6 +18,8 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
+    env:
+      ANSIBLE_HOST_KEY_CHECKING: "False"
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v3
