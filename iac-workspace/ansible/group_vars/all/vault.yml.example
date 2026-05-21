@@ -1,0 +1,17 @@
+# このファイルはAnsible Vaultで暗号化されるべき機密情報を定義するためのサンプルファイルです。
+# 実際の使用時は「vault.yml」というファイル名でコピーし、Ansible Vaultで暗号化してください。
+# `ansible-vault encrypt vault.yml`
+
+# データベースユーザーのパスワード
+db_password_reader: "YOUR_PKDB_READER_PASSWORD"
+db_password_editor: "YOUR_PKDB_EDITOR_PASSWORD"
+
+# GitHub Personal Access Token (CI/CDワークフロー用)
+# アプリリポジトリからインフラリポジトリへdispatchをトリガーするためのトークン
+infra_repo_dispatch_token: "YOUR_INFRA_REPO_DISPATCH_TOKEN"
+
+# Discord Webhook URL (汎用通知用。例: バックアップ通知)
+ubsleepy_backup_discord_webhook: "YOUR_DISCORD_WEBHOOK_URL_FOR_BACKUP"
+
+# その他のAPIキーや認証情報など
+# example_api_key: "YOUR_EXAMPLE_API_KEY"
