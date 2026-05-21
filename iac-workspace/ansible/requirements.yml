@@ -1,6 +1,10 @@
 ---
 collections:
   - name: community.docker
+    version: "<=3.4.11"
   - name: community.general
+    version: "<=4.8.0"
   - name: community.crypto
+    version: "<=2.3.4"
   - name: ansible.posix
+    version: "<=1.4.0"
