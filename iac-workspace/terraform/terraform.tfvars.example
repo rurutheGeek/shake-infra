@@ -1,0 +1,21 @@
+# このファイルはTerraformの変数を定義するためのサンプルファイルです。
+# 機密情報を含むため、Gitリポジトリにはコミットしないでください（.gitignoreで管理）。
+# 実際の使用時は「terraform.tfvars」というファイル名でコピーし、値を入力してください。
+
+# Cloudflare API Token (R2バケット、DNS管理用)
+cloudflare_api_token  = "YOUR_CLOUDFLARE_API_TOKEN"
+cloudflare_zone_id    = "YOUR_CLOUDFLARE_ZONE_ID"
+cloudflare_account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
+
+# GitHub Personal Access Token (TerraformがGitHubのSecretを操作するために必要)
+# repoスコープ、またはFine-grained PATでAdministrationとSecretsの権限を付与してください
+github_token              = "YOUR_GITHUB_PERSONAL_ACCESS_TOKEN"
+# GitHubのユーザー名または組織名 (e.g., rurutheGeek)
+github_owner              = "YOUR_GITHUB_OWNER"
+
+# Discord Webhook URL (CI/CDの通知用)
+discord_webhook_url       = "YOUR_DISCORD_WEBHOOK_URL"
+
+# インフラリポジトリへのデプロイをトリガーするためのPAT (アプリリポジトリ側に登録されるSecret)
+# インフラリポジトリへのrepository_dispatch権限を付与してください
+infra_repo_dispatch_token = "YOUR_INFRA_REPO_DISPATCH_TOKEN"
