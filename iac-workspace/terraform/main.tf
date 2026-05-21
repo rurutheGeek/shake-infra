@@ -154,9 +154,9 @@ data "github_repository" "infra" {
 }
 
 resource "github_actions_secret" "infra_discord_webhook" {
-  repository      = data.github_repository.infra.name
-  secret_name     = "DISCORD_WEBHOOK_URL"
-  plaintext_value = var.discord_webhook_url
+  repository  = data.github_repository.infra.name
+  secret_name = "DISCORD_WEBHOOK_URL"
+  value       = var.discord_webhook_url
 }
 
 # ------------------------------------------
@@ -167,9 +167,9 @@ data "github_repository" "ubsleepy" {
 }
 
 resource "github_actions_secret" "ubsleepy_dispatch_token" {
-  repository      = data.github_repository.ubsleepy.name
-  secret_name     = "INFRA_REPO_DISPATCH_TOKEN"
-  plaintext_value = var.infra_repo_dispatch_token
+  repository  = data.github_repository.ubsleepy.name
+  secret_name = "INFRA_REPO_DISPATCH_TOKEN"
+  value       = var.infra_repo_dispatch_token
 }
 
 # 必要に応じて他のアプリリポジトリ (shakeweb等) もコメントアウトを外して追加可能
@@ -181,3 +181,29 @@ resource "github_actions_secret" "ubsleepy_dispatch_token" {
 #   secret_name     = "INFRA_REPO_DISPATCH_TOKEN"
 #   plaintext_value = var.infra_repo_dispatch_token
 # }
+
+# ==========================================
+# Cloudflare Workers (Failover / Maintenance)
+# ==========================================
+
+variable "maintenance_mode" {
+  description = "Enable maintenance mode (routes traffic to Worker)"
+  type        = bool
+  default     = false
+}
+
+resource "cloudflare_workers_script" "failover_script" {
+  account_id = var.cloudflare_account_id
+  name       = "maintenance-failover"
+  content    = replace(file("${path.module}/worker_scripts/failover_worker.js"), "__MAINTENANCE_HTML_CONTENT__", file("${path.module}/worker_scripts/maintenance.html"))
+  
+  module = true
+}
+
+resource "cloudflare_workers_route" "failover_route" {
+  count       = var.maintenance_mode ? 1 : 0
+  zone_id     = var.cloudflare_zone_id
+  pattern     = "ruruthegeek.dpdns.org/*"
+  script_name = cloudflare_workers_script.failover_script.name
+}
+

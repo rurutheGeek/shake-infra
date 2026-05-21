@@ -1,0 +1,13 @@
+[Unit]
+Description=Failover Webhook Receiver for Alertmanager
+After=network.target
+
+[Service]
+User={{ ansible_user }}
+WorkingDirectory={{ monitoring_data_dir }}
+ExecStart=/usr/bin/python3 {{ monitoring_data_dir }}/failover_webhook.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

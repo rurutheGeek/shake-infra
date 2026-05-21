@@ -1,0 +1,11 @@
+groups:
+  - name: failover.rules
+    rules:
+      - alert: ProxyDown
+        expr: probe_success{job="blackbox"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Reverse Proxy is down"
+          description: "Blackbox exporter cannot reach the reverse proxy."
