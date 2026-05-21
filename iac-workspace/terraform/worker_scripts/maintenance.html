@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>503 Service Unavailable - メンテナンス中</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        h1 {
+            font-size: 3rem;
+            color: #e74c3c;
+            margin-bottom: 10px;
+        }
+        p {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            color: #555;
+        }
+        .game-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-top: 20px;
+            max-width: 600px;
+            width: 100%;
+        }
+        #dino-game {
+            width: 100%;
+            height: 150px;
+            border-bottom: 2px solid #333;
+            position: relative;
+            overflow: hidden;
+            background-color: #f0f0f0;
+            cursor: pointer;
+        }
+        #dino {
+            width: 40px;
+            height: 40px;
+            background-color: #3498db;
+            position: absolute;
+            bottom: 0;
+            left: 20px;
+            border-radius: 5px;
+        }
+        .cactus {
+            width: 20px;
+            height: 40px;
+            background-color: #2ecc71;
+            position: absolute;
+            bottom: 0;
+            right: -20px;
+            border-radius: 3px;
+        }
+        #score-board {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .instruction {
+            font-size: 0.9rem;
+            color: #888;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>503 Service Unavailable</h1>
+    <p>現在、サーバー設備のメンテナンスのため、サービスを一時停止しております。<br>復旧までしばらくお待ちください。</p>
+
+    <div class="game-container">
+        <div id="score-board">Score: <span id="score">0</span></div>
+        <div id="dino-game">
+            <div id="dino"></div>
+        </div>
+    </div>
+
+    <script>
+        const dino = document.getElementById("dino");
+        const gameContainer = document.getElementById("dino-game");
+        const scoreElement = document.getElementById("score");
+        
+        let isJumping = false;
+        let score = 0;
+        let isGameOver = true; // ゲーム開始前はGameOver状態
+        let gameLoop;
+        let cactusInterval;
+        let cactusSpeed = 5;
+        let cactusSpawnRate = 2000; // ms
+        let isSpaceKeyPressed = false; // スペースキーが押されているかを追跡するフラグ
+
+        // ゲームのリセットと開始
+        function resetGame() {
+            isJumping = false;
+            score = 0;
+            isGameOver = false;
+            scoreElement.innerText = score;
+            dino.style.bottom = '0px';
+
+            // 既存のサボテンを全て削除
+            const existingCacti = document.querySelectorAll('.cactus');
+            existingCacti.forEach(cactus => cactus.remove());
+
+            // インターバルをクリア
+            clearInterval(gameLoop);
+            clearInterval(cactusInterval);
+
+            // ゲームループとサボテン生成を開始
+            gameLoop = setInterval(gameLogic, 20); // ゲーム全体のロジックループ
+            cactusInterval = setInterval(createCactus, cactusSpawnRate);
+        }
+
+        // ゲームロジック（衝突判定、スコア更新など）
+        function gameLogic() {
+            if (isGameOver) return;
+
+            // スコアを徐々に増やす
+            score++;
+            scoreElement.innerText = Math.floor(score / 10); // 10フレームごとに1点
+
+            const cacti = document.querySelectorAll('.cactus');
+            cacti.forEach(cactus => {
+                let dinoBottom = parseInt(window.getComputedStyle(dino).getPropertyValue("bottom"));
+                let cactusLeft = parseInt(window.getComputedStyle(cactus).getPropertyValue("left"));
+
+                if (cactusLeft > 0 && cactusLeft < 60 && dinoBottom < 40) {
+                    gameOver();
+                }
+            });
+        }
+
+        function jump() {
+            if (isJumping || isGameOver) return;
+            isJumping = true;
+            let position = 0;
+            let upInterval = setInterval(() => {
+                if (position >= 100) {
+                    clearInterval(upInterval);
+                    let downInterval = setInterval(() => {
+                        if (position <= 0) {
+                            clearInterval(downInterval);
+                            isJumping = false;
+                            dino.style.bottom = '0px'; // 確実に地面に
+                        } else {
+                            position -= 5;
+                            dino.style.bottom = position + 'px';
+                        }
+                    }, 20);
+                } else {
+                    position += 5;
+                    dino.style.bottom = position + 'px';
+                }
+            }, 20);
+        }
+
+        function createCactus() {
+            if (isGameOver) return;
+            const cactus = document.createElement("div");
+            cactus.classList.add("cactus");
+            let cactusPosition = gameContainer.offsetWidth;
+            cactus.style.left = cactusPosition + 'px';
+            gameContainer.appendChild(cactus);
+
+            let moveInterval = setInterval(() => {
+                if (isGameOver) {
+                    clearInterval(moveInterval);
+                    return;
+                }
+                if (cactusPosition < -20) {
+                    clearInterval(moveInterval);
+                    if (cactus.parentNode) {
+                        gameContainer.removeChild(cactus);
+                    }
+                } else {
+                    cactusPosition -= cactusSpeed;
+                    cactus.style.left = cactusPosition + 'px';
+                }
+            }, 20);
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            clearInterval(gameLoop);
+            clearInterval(cactusInterval);
+        }
+
+        // イベントリスナー
+        // キーボード入力
+        document.addEventListener('keydown', function(event) {
+            if (event.code === 'Space' && !isSpaceKeyPressed) {
+                event.preventDefault();
+                isSpaceKeyPressed = true; // キーが押されたことを記録
+                if (isGameOver) {
+                    resetGame();
+                } else {
+                    jump();
+                }
+            }
+        });
+        document.addEventListener('keyup', function(event) {
+            if (event.code === 'Space') {
+                isSpaceKeyPressed = false; // キーが離されたことを記録
+            }
+        });
+
+        // マウス/タッチ入力
+        gameContainer.addEventListener('mousedown', function() {
+            if (isGameOver) {
+                resetGame();
+            } else {
+                jump();
+            }
+        });
+        gameContainer.addEventListener('touchstart', function() {
+            if (isGameOver) {
+                resetGame();
+            } else {
+                jump();
+            }
+        });
+
+        // 初期状態の表示（最初の入力でゲームを開始する）
+        document.addEventListener('DOMContentLoaded', () => {
+            const initialStartGame = (event) => {
+                // スペースキーが押されたか、マウス/タッチ入力があった場合
+                if ((event.code === 'Space' && !isSpaceKeyPressed) || event.type === 'mousedown' || event.type === 'touchstart') {
+                    if (event.code === 'Space') {
+                        isSpaceKeyPressed = true; // 初期開始時もスペースキーが押されたことを記録
+                    }
+                    resetGame();
+                    // 初期開始用のリスナーを削除
+                    document.removeEventListener('keydown', initialStartGame);
+                    gameContainer.removeEventListener('mousedown', initialStartGame);
+                    gameContainer.removeEventListener('touchstart', initialStartGame);
+                    // キーボードのkeyupリスナーは残しておく
+                    if (event.code === 'Space') {
+                        document.addEventListener('keyup', () => isSpaceKeyPressed = false);
+                    }
+                }
+            };
+            document.addEventListener('keydown', initialStartGame);
+            gameContainer.addEventListener('mousedown', initialStartGame);
+            gameContainer.addEventListener('touchstart', initialStartGame);
+        });
+
+    </script>
+</body>
+</html>

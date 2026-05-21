@@ -37,7 +37,10 @@
     mode: "0644"
   loop:
     - prometheus.yml
+    - prometheus_rules.yml
+    - alertmanager.yml
     - monitoring-compose.yml
+    - failover_webhook.py
   notify: Restart monitoring containers
 
 - name: コンテナの起動 (Docker Compose V2)
@@ -47,3 +50,19 @@
       - monitoring-compose.yml
     state: present
     wait: true
+
+- name: Failover Webhook用サービスファイルの配置
+  ansible.builtin.template:
+    src: failover-webhook.service.j2
+    dest: /etc/systemd/system/failover-webhook.service
+    mode: "0644"
+  vars:
+    ansible_user: "ruru" # tarakoserverのterraform実行権限を持つユーザー
+    monitoring_data_dir: "/opt/monitoring"
+
+- name: Failover Webhookのサービス起動と有効化
+  ansible.builtin.systemd:
+    name: failover-webhook.service
+    state: restarted
+    enabled: yes
+    daemon_reload: yes

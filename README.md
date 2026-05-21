@@ -10,8 +10,9 @@
 *   ネットワーク (Tailscale): 各ノード間をセキュアなプライベートメッシュVPNで接続。
 *   構成管理・デプロイ (Ansible): OS基本設定、ファイアウォール（UFW）、監視エージェント、および各アプリケーションコンテナの展開・制御。
     *   稼働サービス: PostgreSQL 15, Minecraft Reforged, Discord Bot (ubsleepy)
-    *   監視基盤: Prometheus + Grafana によるメトリクス可視化と、UPS（無停電電源装置）のステータス監視。
-    *   自動バックアップ: Systemd Timer と連動した R2 への日次自動バックアップと、Discord への結果（エラー・成功）通知。
+        *   監視基盤: Prometheus + Grafana によるメトリクス可視化と、UPS（無停電電源装置）のステータス監視。
+        *   自動バックアップ: Systemd Timer と連動した R2 への日次自動バックアップと、Discord への結果通知。
+        *   高可用性 (自動フェイルオーバー): 自宅サーバーダウン時に Cloudflare Workers（ミニゲーム付きメンテナンス画面）へルーティングを完全自動で切り替え。
 
 ---
 
