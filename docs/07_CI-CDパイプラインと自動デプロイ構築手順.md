@@ -72,53 +72,85 @@ jobs:
 
 ## 5. インフラリポジトリのWorkflow設定例
 インフラリポジトリ（ここ）の `.github/workflows/cd_deploy.yml` に以下を記述する。
-これにより、tarakoserver上のRunnerが処理を受け取る。
+これにより、tarakoserver上のRunnerが処理を受け取り、環境のセットアップとデプロイを行う。
 
 ```yaml
 name: Auto Deploy from Apps
 
 on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Target application to deploy'
+        required: true
+        type: choice
+        options:
+          - ubsleepy
+          - shakeweb
   repository_dispatch:
     types:
       - deploy_ubsleepy
-      # - deploy_shakeweb などのように追加していく
+      - deploy_shakeweb
 
 jobs:
   deploy:
-    # 自身のサーバー上のランナーで実行する指定
     runs-on: self-hosted
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v3
 
-      - name: Setup Vault Password
-        run: echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > ./iac-workspace/.vault_pass
+      - name: Install Ansible Collections
+        run: |
+          cd iac-workspace/ansible
+          ansible-galaxy collection install -r requirements.yml
 
       - name: Deploy ubsleepy
-        if: github.event.action == 'deploy_ubsleepy'
+        if: github.event.action == 'deploy_ubsleepy' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'ubsleepy')
         run: |
           cd iac-workspace
+          export ANSIBLE_HOST_KEY_CHECKING=False
+          export ANSIBLE_VAULT_PASSWORD_FILE="~/.vault_pass"
           ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags ubsleepy
 
-      - name: Cleanup Vault Password
-        if: always()
-        run: rm -f ./iac-workspace/.vault_pass
+      - name: Deploy shake-web
+        if: github.event.action == 'deploy_shakeweb' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'shakeweb')
+        run: |
+          cd iac-workspace
+          export ANSIBLE_HOST_KEY_CHECKING=False
+          export ANSIBLE_VAULT_PASSWORD_FILE="~/.vault_pass"
+          ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags web
 
       - name: Discord Notification (Success)
         if: success()
         run: |
-          curl -H "Content-Type: application/json" \
-               -X POST \
-               -d '{"content": "[SUCCESS] デプロイ成功\n対象: `'""${{ github.event.action }}"'\nRunner: `tarakoserver`\n詳細: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
-               ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TARGET="${{ github.event.action }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET="manual-${{ github.event.inputs.target }}"
+          fi
+          if [ -n "${{ secrets.DISCORD_WEBHOOK_URL }}" ]; then
+            curl -H "Content-Type: application/json" \
+                 -X POST \
+                 -d '{"content": "[SUCCESS] デプロイ成功\n対象: `'"$TARGET"'`\nRunner: `tarakoserver`\n詳細: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
+                 "${{ secrets.DISCORD_WEBHOOK_URL }}"
+          else
+            echo "DISCORD_WEBHOOK_URL is not set. Skipping notification."
+          fi
 
       - name: Discord Notification (Failure)
         if: failure()
         run: |
-          curl -H "Content-Type: application/json" \
-               -X POST \
-               -d '{"content": "[FAILED] デプロイ失敗\n対象: `'"${{ github.event.action }}"'`\nRunner: `tarakoserver`\nログを確認してください: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
-               ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TARGET="${{ github.event.action }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET="manual-${{ github.event.inputs.target }}"
+          fi
+          if [ -n "${{ secrets.DISCORD_WEBHOOK_URL }}" ]; then
+            curl -H "Content-Type: application/json" \
+                 -X POST \
+                 -d '{"content": "[FAILED] デプロイ失敗\n対象: `'"$TARGET"'`\nRunner: `tarakoserver`\nログを確認してください: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
+                 "${{ secrets.DISCORD_WEBHOOK_URL }}"
+          else
+            echo "DISCORD_WEBHOOK_URL is not set. Skipping notification."
+          fi
 ```
 
 ## 6. 各種トークン・シークレットの役割
