@@ -172,3 +172,4 @@
     cmd: docker compose restart web
     chdir: "{{ app_dir }}"
   when: web_files_copy.changed or web_env_template.changed or web_ssl_key_copy.changed
+  changed_when: true
