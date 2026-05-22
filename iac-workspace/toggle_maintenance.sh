@@ -23,7 +23,7 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-MODE=$(echo "$1" | tr '[:upper:]' 'lower]')
+MODE=$(echo "$1" | tr '[:upper:]' '[:lower:]')
 
 if [ "$MODE" = "on" ]; then
     echo "🚧 メンテナンスモードを有効にします..."
