@@ -133,6 +133,7 @@
     owner: "{{ app_owner }}"
     group: "{{ app_group }}"
     mode: "0640"
+  register: web_files_copy
 
 - name: Web用 .env の生成 (Jinja2テンプレート)
   ansible.builtin.template:
@@ -141,6 +142,7 @@
     owner: "{{ app_owner }}"
     group: "{{ app_group }}"
     mode: "0600"
+  register: web_env_template
 
 - name: SSL秘密鍵の配置
   ansible.builtin.copy:
@@ -149,6 +151,7 @@
     owner: "{{ app_owner }}"
     group: "{{ app_group }}"
     mode: "0600"
+  register: web_ssl_key_copy
 
 - name: 証明書ファイルのパーミッション修正
   ansible.builtin.file:
@@ -163,3 +166,9 @@
     state: present
     build: always
     remove_orphans: true
+
+- name: 設定変更に伴うNginxコンテナの再起動
+  ansible.builtin.command:
+    cmd: docker compose restart web
+    chdir: "{{ app_dir }}"
+  when: web_files_copy.changed or web_env_template.changed or web_ssl_key_copy.changed
