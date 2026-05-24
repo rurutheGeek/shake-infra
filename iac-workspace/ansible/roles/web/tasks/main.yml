@@ -167,9 +167,17 @@
     build: always
     remove_orphans: true
 
+- name: アプリケーションコード更新に伴うQuizコンテナの再構築と起動 # noqa: no-handler
+  ansible.builtin.command:
+    cmd: docker compose up -d --build quiz_app
+    chdir: "{{ app_dir }}"
+  when: web_git_sync_result.changed
+  changed_when: true
+
 - name: 設定変更に伴うNginxコンテナの再起動
   ansible.builtin.command:
     cmd: docker compose restart web
     chdir: "{{ app_dir }}"
   when: web_files_copy.changed or web_env_template.changed or web_ssl_key_copy.changed
   changed_when: true
+
