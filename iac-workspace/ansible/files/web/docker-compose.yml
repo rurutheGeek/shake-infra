@@ -16,7 +16,7 @@ services:
       - quiz_app
 
   quiz_app:
-    build: ./quiz/bsquiz
+    build: ./quiz
     container_name: bsquiz
     ports:
       - "3000:3000"
