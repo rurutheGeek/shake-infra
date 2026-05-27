@@ -47,6 +47,7 @@
     - role: web
       vars:
         web_repo_url: "{{ repo_url_web }}"
+        web_alexa_repo_url: "https://github.com/rurutheGeek/pokebs_alexaskill.git"
       tags: web
     - role: ubsleepy
       vars:

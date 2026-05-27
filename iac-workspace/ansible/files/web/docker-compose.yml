@@ -29,3 +29,13 @@ services:
       - DB_NAME=${DB_NAME}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=${DB_PORT}
+
+  alexa_skill:
+    build: ./alexa
+    container_name: alexa_skill
+    ports:
+      - "8010:8000"
+    restart: always
+    volumes:
+      - ./alexa/logs:/app/logs
+
