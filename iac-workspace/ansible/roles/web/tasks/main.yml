@@ -114,6 +114,17 @@
   become_user: "{{ app_owner }}"
   register: web_git_sync_result
 
+- name: AlexaスキルコードをGitから同期 # noqa: latest[git]
+  ansible.builtin.git:
+    repo: "{{ web_alexa_repo_url }}"
+    dest: "{{ app_dir }}/alexa_tmp"
+    update: true
+    accept_hostkey: true
+    version: HEAD
+  become: true
+  become_user: "{{ app_owner }}"
+  register: web_alexa_git_sync_result
+
 - name: ソースコードを本番ディレクトリへ配置（同期） # noqa: no-handler
   ansible.posix.synchronize:
     src: "{{ app_dir }}/src_tmp/{{ item }}"
@@ -126,6 +137,15 @@
     - quiz
   when: web_git_sync_result.changed
 
+- name: Alexaスキルコードを本番ディレクトリへ配置（同期） # noqa: no-handler
+  ansible.posix.synchronize:
+    src: "{{ app_dir }}/alexa_tmp/"
+    dest: "{{ app_dir }}/alexa"
+    rsync_opts:
+      - "--exclude=.git"
+  delegate_to: "{{ inventory_hostname }}"
+  when: web_alexa_git_sync_result.changed
+
 - name: インフラ設定ファイル群（Docker Compose等）の配置
   ansible.builtin.copy:
     src: files/web/
@@ -134,6 +154,18 @@
     group: "{{ app_group }}"
     mode: "0640"
   register: web_files_copy
+
+- name: Nginxテンプレート群の配置
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ app_dir }}/templates/"
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  loop:
+    - files/web/conf.d/ssl.conf.template
+    - files/web/conf.d/redirect.conf.template
+  register: web_templates_copy
 
 - name: Web用 .env の生成 (Jinja2テンプレート)
   ansible.builtin.template:
@@ -167,17 +199,23 @@
     build: always
     remove_orphans: true
 
-- name: アプリケーションコード更新に伴うQuizコンテナの再構築と起動 # noqa: no-handler
+- name: アプリケーションコード更新に伴うQuizコンテナの再構築と起動
   ansible.builtin.command:
     cmd: docker compose up -d --build quiz_app
     chdir: "{{ app_dir }}"
-  when: web_git_sync_result.changed
+  changed_when: true
+
+- name: アプリケーションコード更新に伴うAlexaスキルコンテナの再構築と起動
+  ansible.builtin.command:
+    cmd: docker compose up -d --build alexa_skill
+    chdir: "{{ app_dir }}"
   changed_when: true
 
 - name: 設定変更に伴うNginxコンテナの再起動
   ansible.builtin.command:
     cmd: docker compose restart web
     chdir: "{{ app_dir }}"
-  when: web_files_copy.changed or web_env_template.changed or web_ssl_key_copy.changed
+  when: web_files_copy.changed or web_templates_copy.changed or web_env_template.changed or web_ssl_key_copy.changed or web_alexa_git_sync_result.changed
   changed_when: true
+
 
