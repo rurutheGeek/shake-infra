@@ -5,6 +5,7 @@
     name: prometheus-node-exporter
     state: present
     update_cache: true
+    cache_valid_time: 3600  # common で更新済みなら再実行をスキップ
 
 - name: サービスの有効化と起動
   ansible.builtin.systemd:
@@ -37,9 +38,18 @@
       - "/dev/disk/:/dev/disk:ro"
   when: exporters_docker_check.rc == 0
 
-- name: UFWでポート8090の開放
+- name: "UFWでポート8090の開放（監視サーバーのみ）"
   community.general.ufw:
     rule: allow
+    src: 100.123.163.119
+    port: "8090"
+    proto: tcp
+  when: exporters_docker_check.rc == 0
+
+- name: "UFWでポート8090の開放（緊急用ローカルLAN）"
+  community.general.ufw:
+    rule: allow
+    src: 192.168.10.0/24
     port: "8090"
     proto: tcp
   when: exporters_docker_check.rc == 0

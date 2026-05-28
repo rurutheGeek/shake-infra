@@ -1,0 +1,8 @@
+---
+# web/handlers/main.yml
+- name: Enable ssl-cert-check timer
+  ansible.builtin.systemd:
+    name: ssl-cert-check.timer
+    state: started
+    enabled: true
+    daemon_reload: true

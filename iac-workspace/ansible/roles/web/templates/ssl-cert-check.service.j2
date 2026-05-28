@@ -1,0 +1,6 @@
+[Unit]
+Description=SSL Certificate Expiry Check
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ssl-cert-check.sh

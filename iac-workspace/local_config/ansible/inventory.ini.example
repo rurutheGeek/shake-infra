@@ -1,0 +1,11 @@
+[proxy_node]
+negitoroserver ansible_host=YOUR_PROXY_NODE_IP ansible_user=ansible_admin
+
+[home_node1]
+shakeserver ansible_host=YOUR_MAIN_NODE_IP ansible_user=ansible_admin
+
+[home_node2]
+tarakoserver ansible_host=YOUR_MONITORING_NODE_IP ansible_user=ansible_admin
+
+[all:vars]
+ansible_ssh_private_key_file=local_config/ansible/credentials/id_rsa # pragma: allowlist secret

@@ -20,9 +20,18 @@ jobs:
     runs-on: self-hosted
     env:
       ANSIBLE_HOST_KEY_CHECKING: "False"
+      ANSIBLE_PRIVATE_KEY_FILE: "${{ github.workspace }}/.ansible_pkey"
+      ANSIBLE_VAULT_PASS_FILE: "${{ github.workspace }}/.ansible_vault_pass"
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v3
+
+      - name: Setup Ansible Credentials
+        run: |
+          echo "${{ secrets.ANSIBLE_SSH_KEY }}" > "${{ env.ANSIBLE_PRIVATE_KEY_FILE }}"
+          chmod 600 "${{ env.ANSIBLE_PRIVATE_KEY_FILE }}"
+          echo "${{ secrets.ANSIBLE_VAULT_PASS }}" > "${{ env.ANSIBLE_VAULT_PASS_FILE }}"
+          chmod 600 "${{ env.ANSIBLE_VAULT_PASS_FILE }}"
 
       - name: Install Ansible Collections
         run: |
@@ -33,17 +42,23 @@ jobs:
         if: github.event.action == 'deploy_ubsleepy' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'ubsleepy')
         run: |
           cd iac-workspace
-          export ANSIBLE_HOST_KEY_CHECKING=False
-          export ANSIBLE_VAULT_PASSWORD_FILE="~/.vault_pass"
-          ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags ubsleepy
+          ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags ubsleepy \
+            --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
+            --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}"
 
       - name: Deploy shake-web
         if: github.event.action == 'deploy_shakeweb' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'shakeweb')
         run: |
           cd iac-workspace
-          export ANSIBLE_HOST_KEY_CHECKING=False
-          export ANSIBLE_VAULT_PASSWORD_FILE="~/.vault_pass"
-          ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags web
+          ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags web \
+            --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
+            --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}"
+
+      - name: Cleanup Credentials
+        if: always()
+        run: |
+          rm -f "${{ env.ANSIBLE_PRIVATE_KEY_FILE }}"
+          rm -f "${{ env.ANSIBLE_VAULT_PASS_FILE }}"
 
       - name: Discord Notification (Success)
         if: success()

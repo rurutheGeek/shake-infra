@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# ランナーの初期登録設定
+./config.sh --url "${GITHUB_REPO_URL}" --token "${GITHUB_RUNNER_TOKEN}" --unattended --replace --name "${RUNNER_NAME}"
+
+# コンテナ終了時の自動登録解除処理
+cleanup() {
+    echo "Removing runner..."
+    ./config.sh remove --token "${GITHUB_RUNNER_TOKEN}"
+}
+
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
+
+# ランナーの起動
+./run.sh &
+PID=$!
+wait $PID

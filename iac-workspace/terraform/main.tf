@@ -31,6 +31,11 @@ provider "cloudflare" {
 # ==========================================
 # Variables
 # ==========================================
+variable "server_ip" {
+  description = "IP address of the target server for DNS records"
+  type        = string
+}
+
 variable "cloudflare_api_token" {
   description = "Cloudflare API Token"
   type        = string
@@ -56,7 +61,7 @@ variable "cloudflare_account_id" {
 resource "cloudflare_record" "mc_node" {
   zone_id = var.cloudflare_zone_id
   name    = "mc"
-  content = "133.80.183.83"
+  content = var.server_ip
   type    = "A"
   proxied = false
 }
@@ -65,7 +70,7 @@ resource "cloudflare_record" "mc_node" {
 resource "cloudflare_record" "root_domain" {
   zone_id = var.cloudflare_zone_id
   name    = "ruruthegeek.dpdns.org"
-  content = "133.80.183.83"
+  content = var.server_ip
   type    = "A"
   proxied = true
 }
@@ -74,7 +79,7 @@ resource "cloudflare_record" "root_domain" {
 resource "cloudflare_record" "www_domain" {
   zone_id = var.cloudflare_zone_id
   name    = "www"
-  content = "133.80.183.83"
+  content = var.server_ip
   type    = "A"
   proxied = true
 }
@@ -146,6 +151,33 @@ variable "infra_repo_dispatch_token" {
   sensitive   = true
 }
 
+variable "cf_r2_access_key_id" {
+  description = "Cloudflare R2 Access Key ID (for Terraform CI backend)"
+  type        = string
+  sensitive   = true
+}
+
+variable "cf_r2_secret_access_key" {
+  description = "Cloudflare R2 Secret Access Key (for Terraform CI backend)"
+  type        = string
+  sensitive   = true
+}
+
+locals {
+  # CI用バックエンド設定（terraform-plan / drift-detection workflow で使用）
+  tf_backend_config = <<-EOT
+    bucket                      = "shakeserver-backup"
+    key                         = "terraform/state/terraform.tfstate"
+    region                      = "auto"
+    endpoint                    = "https://${var.cloudflare_account_id}.r2.cloudflarestorage.com"
+    skip_credentials_validation = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_metadata_api_check     = true
+    skip_s3_checksum            = true
+  EOT
+}
+
 # ------------------------------------------
 # インフラリポジトリ (shake-infra)
 # ------------------------------------------
@@ -157,6 +189,42 @@ resource "github_actions_secret" "infra_discord_webhook" {
   repository  = data.github_repository.infra.name
   secret_name = "DISCORD_WEBHOOK_URL"
   value       = var.discord_webhook_url
+}
+
+resource "github_actions_secret" "ansible_ssh_key" {
+  repository  = data.github_repository.infra.name
+  secret_name = "ANSIBLE_SSH_KEY"
+  value       = file("${path.module}/../local_config/ansible/credentials/id_rsa")
+}
+
+resource "github_actions_secret" "ansible_vault_pass" {
+  repository  = data.github_repository.infra.name
+  secret_name = "ANSIBLE_VAULT_PASS"
+  value       = file("${path.module}/../local_config/ansible/credentials/.vault_pass")
+}
+
+resource "github_actions_secret" "cloudflare_api_token" {
+  repository  = data.github_repository.infra.name
+  secret_name = "CLOUDFLARE_API_TOKEN"
+  value       = var.cloudflare_api_token
+}
+
+resource "github_actions_secret" "cf_r2_access_key_id" {
+  repository  = data.github_repository.infra.name
+  secret_name = "CF_R2_ACCESS_KEY_ID"
+  value       = var.cf_r2_access_key_id
+}
+
+resource "github_actions_secret" "cf_r2_secret_access_key" {
+  repository  = data.github_repository.infra.name
+  secret_name = "CF_R2_SECRET_ACCESS_KEY"
+  value       = var.cf_r2_secret_access_key
+}
+
+resource "github_actions_secret" "tf_backend_config" {
+  repository  = data.github_repository.infra.name
+  secret_name = "TF_BACKEND_CONFIG"
+  value       = local.tf_backend_config
 }
 
 # ------------------------------------------

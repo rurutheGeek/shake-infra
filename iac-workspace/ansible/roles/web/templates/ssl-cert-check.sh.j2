@@ -1,0 +1,25 @@
+#!/bin/bash
+# SSL証明書の有効期限を確認し、30日以内に期限切れの場合はDiscordに通知する
+
+CERT_PATH="{{ app_dir }}/certs/cert.pem"
+DISCORD_WEBHOOK="{{ ubsleepy_backup_discord_webhook }}"
+WARN_DAYS=30
+
+if [ ! -f "$CERT_PATH" ]; then
+  echo "証明書が見つかりません: $CERT_PATH"
+  exit 1
+fi
+
+EXPIRY=$(openssl x509 -enddate -noout -in "$CERT_PATH" | cut -d= -f2)
+EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s)
+NOW_EPOCH=$(date +%s)
+DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+echo "証明書の有効期限: $EXPIRY (残り ${DAYS_LEFT} 日)"
+
+if [ "$DAYS_LEFT" -le "$WARN_DAYS" ]; then
+  curl -s -H "Content-Type: application/json" \
+    -X POST \
+    -d "{\"content\": \"[SSL CERT EXPIRY WARNING] SSL証明書の有効期限が ${DAYS_LEFT} 日後です。更新してください。\\n証明書パス: ${CERT_PATH}\\n有効期限: ${EXPIRY}\"}" \
+    "$DISCORD_WEBHOOK"
+fi

@@ -31,6 +31,27 @@ services:
     network_mode: "host"
     restart: unless-stopped
 
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki
+    network_mode: "host"
+    volumes:
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: promtail
+    network_mode: "host"
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    restart: unless-stopped
+
 volumes:
   prometheus_data:
   grafana_data:
+  loki_data:

@@ -1,0 +1,16 @@
+# ユーザーごとに設定を変更するTerraformの変数設定ファイルです。
+# 設定後、ファイル名を「terraform.tfvars」として保存してください。
+
+# Cloudflare 接続設定
+cloudflare_api_token  = "YOUR_CLOUDFLARE_API_TOKEN"
+cloudflare_zone_id    = "YOUR_CLOUDFLARE_ZONE_ID"
+cloudflare_account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
+server_ip             = "YOUR_SERVER_IP"
+
+# GitHub 接続設定
+github_token          = "YOUR_GITHUB_PERSONAL_ACCESS_TOKEN"
+github_owner          = "rurutheGeek"
+
+# その他通知・連携設定
+discord_webhook_url   = "YOUR_DISCORD_WEBHOOK_URL"
+infra_repo_dispatch_token = "YOUR_GITHUB_DISPATCH_TOKEN"

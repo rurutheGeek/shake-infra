@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: github_runner
+    restart: always
+    environment:
+      - GITHUB_REPO_URL={{ github_repo_url }}
+      - GITHUB_RUNNER_TOKEN={{ github_runner_token }}
+      - RUNNER_NAME={{ ansible_hostname }}-runner
