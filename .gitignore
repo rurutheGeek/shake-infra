@@ -54,3 +54,4 @@ tmp/
 
 # Ignore work logs and outputs
 output/
+.claude/

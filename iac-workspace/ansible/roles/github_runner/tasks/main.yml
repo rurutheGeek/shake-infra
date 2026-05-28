@@ -1,86 +1,35 @@
 ---
-- name: Runner用の依存パッケージ（Ansible等）をインストール
-  become: true
-  ansible.builtin.apt:
-    name:
-      - ansible
-      - curl
-    state: present
-    update_cache: yes
-
-- name: Runner環境用の .ssh ディレクトリを作成
-  become: false
-  ansible.builtin.file:
-    path: "~/.ssh"
-    state: directory
-    mode: '0700'
-
-- name: Ansible用SSH秘密鍵をRunner環境へ配置
-  become: false
-  ansible.builtin.copy:
-    src: "{{ ansible_ssh_private_key_file | default('~/.ssh/id_rsa') }}"
-    dest: "~/.ssh/id_rsa"
-    mode: '0600'
-
-- name: Ansible VaultパスワードファイルをRunner環境へ配置
-  become: false
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../.vault_pass"
-    dest: "~/.vault_pass"
-    mode: '0600'
-
 - name: Runnerのディレクトリを作成
   become: false
   ansible.builtin.file:
     path: "{{ github_runner_dir }}"
     state: directory
-    mode: '0755'
+    mode: "0755"
 
-- name: Runnerバイナリのダウンロード
+- name: Dockerfileテンプレートの配置
   become: false
-  ansible.builtin.get_url:
-    url: "https://github.com/actions/runner/releases/download/v{{ github_runner_version }}/actions-runner-linux-{{ github_runner_arch }}-{{ github_runner_version }}.tar.gz"
-    dest: "{{ github_runner_dir }}/actions-runner-linux.tar.gz"
-    mode: '0644'
-  register: github_runner_download_result
+  ansible.builtin.template:
+    src: Dockerfile.j2
+    dest: "{{ github_runner_dir }}/Dockerfile"
+    mode: "0644"
 
-- name: Runnerバイナリの展開
+- name: エントリーポイントスクリプトテンプレートの配置
   become: false
-  ansible.builtin.unarchive:
-    src: "{{ github_runner_dir }}/actions-runner-linux.tar.gz"
-    dest: "{{ github_runner_dir }}"
-    remote_src: yes
-  when: github_runner_download_result.changed
-  tags:
-    - skip_ansible_lint
-  # noqa: no-handler
+  ansible.builtin.template:
+    src: entrypoint.sh.j2
+    dest: "{{ github_runner_dir }}/entrypoint.sh"
+    mode: "0755"
 
-- name: ランナーが設定済みか確認
+- name: Docker Composeテンプレートの配置
   become: false
-  ansible.builtin.stat:
-    path: "{{ github_runner_dir }}/.credentials"
-  register: github_runner_configured_result
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ github_runner_dir }}/docker-compose.yml"
+    mode: "0644"
 
-- name: ランナーの設定
+- name: ランナーコンテナのビルドおよび起動
   become: false
-  ansible.builtin.command: "./config.sh --url {{ github_repo_url }} --token {{ github_runner_token }} --unattended --replace"
-  args:
-    chdir: "{{ github_runner_dir }}"
-  when: not github_runner_configured_result.stat.exists and github_runner_token is defined and github_repo_url is defined
-  changed_when: true
-
-- name: サービスのインストールスクリプト実行
-  become: true
-  ansible.builtin.command: "./svc.sh install"
-  args:
-    chdir: "{{ github_runner_dir }}"
-  when: not github_runner_configured_result.stat.exists and github_runner_token is defined and github_repo_url is defined
-  changed_when: true
-
-- name: ランナーサービスの起動と有効化
-  become: true
-  ansible.builtin.command: "./svc.sh start"
-  args:
-    chdir: "{{ github_runner_dir }}"
-  when: not github_runner_configured_result.stat.exists and github_runner_token is defined and github_repo_url is defined
-  changed_when: true
+  community.docker.docker_compose_v2:
+    project_src: "{{ github_runner_dir }}"
+    state: present
+    build: always

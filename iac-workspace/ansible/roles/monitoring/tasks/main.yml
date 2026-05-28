@@ -1,27 +1,28 @@
 ---
 # monitoring/tasks/main.yml
-- name: Dockerインストールスクリプトの実行
-  ansible.builtin.shell: |
-    set -o pipefail
-    curl -fsSL https://get.docker.com | sh
-  args:
-    creates: /usr/bin/docker
-    executable: /bin/bash
 
-- name: Docker Compose V2 プラグインのインストール
-  ansible.builtin.apt:
-    name: docker-compose-plugin
-    state: present
-    update_cache: true
 
-- name: 監視用ポート（Prometheus 9090, Grafana 3000）の開放
+- name: "監視用ポート（Prometheus 9090, Grafana 3000, Loki 3100）の開放（Tailscaleのみ）"
   community.general.ufw:
     rule: allow
+    src: 100.64.0.0/10
     port: "{{ item }}"
     proto: tcp
   loop:
     - "9090"
     - "3000"
+    - "3100"
+
+- name: "監視用ポート（Prometheus 9090, Grafana 3000, Loki 3100）の開放（緊急用ローカルLAN）"
+  community.general.ufw:
+    rule: allow
+    src: 192.168.10.0/24
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "9090"
+    - "3000"
+    - "3100"
 
 - name: 監視用ディレクトリの作成
   ansible.builtin.file:
@@ -41,6 +42,13 @@
     - alertmanager.yml
     - monitoring-compose.yml
     - failover_webhook.py
+  notify: Restart monitoring containers
+
+- name: Promtail設定ファイルの配置（Jinja2テンプレート）
+  ansible.builtin.template:
+    src: promtail-config.yml.j2
+    dest: /opt/monitoring/promtail-config.yml
+    mode: "0644"
   notify: Restart monitoring containers
 
 - name: コンテナの起動 (Docker Compose V2)

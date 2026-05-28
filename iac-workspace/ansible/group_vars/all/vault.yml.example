@@ -2,16 +2,41 @@
 # 実際の使用時は「vault.yml」というファイル名でコピーし、Ansible Vaultで暗号化してください。
 # `ansible-vault encrypt vault.yml`
 
-# データベースユーザーのパスワード
-db_password_reader: "YOUR_PKDB_READER_PASSWORD"
-db_password_editor: "YOUR_PKDB_EDITOR_PASSWORD"
+# ==========================================
+# PostgreSQL
+# ==========================================
+postgres_user:          "YOUR_POSTGRES_SUPERUSER"
+postgres_password:      "YOUR_POSTGRES_SUPERUSER_PASSWORD"
+db_password_reader:     "YOUR_PKDB_READER_PASSWORD"
+db_password_editor:     "YOUR_PKDB_EDITOR_PASSWORD"
 
-# GitHub Personal Access Token (CI/CDワークフロー用)
-# アプリリポジトリからインフラリポジトリへdispatchをトリガーするためのトークン
-infra_repo_dispatch_token: "YOUR_INFRA_REPO_DISPATCH_TOKEN"
+# ==========================================
+# Minecraft
+# ==========================================
+mc_rcon_password: "YOUR_MINECRAFT_RCON_PASSWORD"
 
-# Discord Webhook URL (汎用通知用。例: バックアップ通知)
-ubsleepy_backup_discord_webhook: "YOUR_DISCORD_WEBHOOK_URL_FOR_BACKUP"
+# ==========================================
+# Cloudflare R2 / API
+# ==========================================
+# R2バケット操作用APIキー（バックアップ・ubsleepy・restore テストで使用）
+cf_access_key: "YOUR_R2_ACCESS_KEY_ID"
+cf_secret_key: "YOUR_R2_SECRET_ACCESS_KEY"
 
-# その他のAPIキーや認証情報など
-# example_api_key: "YOUR_EXAMPLE_API_KEY"
+# Cloudflare API キー（ubsleepy アプリ内部で使用）
+cf_api_key: "YOUR_CF_API_KEY_HASH"
+
+# ==========================================
+# Discord
+# ==========================================
+# ubsleepy Discord Bot トークン
+ubsleepy_discord_token: "YOUR_DISCORD_BOT_TOKEN"
+
+# バックアップ通知・SSL期限アラート等の汎用Webhook URL
+ubsleepy_backup_discord_webhook: "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"
+
+# ==========================================
+# オプション（コメントアウトを外して使用）
+# ==========================================
+
+# SSL証明書期限アラート専用Webhook（未設定時は ubsleepy_backup_discord_webhook を使用）
+# ssl_cert_discord_webhook: "https://discord.com/api/webhooks/YOUR_SSL_ALERT_WEBHOOK"

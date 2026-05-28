@@ -1,0 +1,62 @@
+name: Terraform Drift Detection
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # 毎週月曜 AM9:00 JST (UTC 0:00)
+  workflow_dispatch:
+
+jobs:
+  drift-check:
+    name: Detect Infrastructure Drift
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: iac-workspace/terraform
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Write backend config
+        run: echo "${{ secrets.TF_BACKEND_CONFIG }}" > ci_backend.hcl
+
+      - name: Terraform Init
+        run: terraform init -backend-config=ci_backend.hcl
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Terraform Plan (drift check)
+        id: plan
+        run: terraform plan -detailed-exitcode -no-color -input=false 2>&1 | tee plan_output.txt; echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Discord Notification (Drift Detected)
+        if: steps.plan.outputs.exit_code == '2'
+        run: |
+          PLAN_SUMMARY=$(head -50 plan_output.txt | tail -c 1800)
+          curl -s -H "Content-Type: application/json" \
+            -X POST \
+            -d "{\"content\": \"[DRIFT DETECTED] Terraformの実態とコードが乖離しています\\n詳細: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "${{ secrets.DISCORD_WEBHOOK_URL }}"
+
+      - name: Discord Notification (Plan Error)
+        if: steps.plan.outputs.exit_code == '1'
+        run: |
+          curl -s -H "Content-Type: application/json" \
+            -X POST \
+            -d "{\"content\": \"[DRIFT CHECK ERROR] terraform plan の実行中にエラーが発生しました\\n確認してください: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "${{ secrets.DISCORD_WEBHOOK_URL }}"
+
+      - name: Cleanup backend config
+        if: always()
+        run: rm -f ci_backend.hcl plan_output.txt

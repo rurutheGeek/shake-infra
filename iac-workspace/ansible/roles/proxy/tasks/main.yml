@@ -28,6 +28,13 @@
 - name: 時刻同期（NTP再起動）をapt実行前に即時反映させる
   ansible.builtin.meta: flush_handlers
 
+- name: sslhのdebconf設定（スタンドアロンモードの事前選択）
+  ansible.builtin.debconf:
+    name: sslh
+    question: sslh/inetd_or_standalone
+    value: standalone
+    vtype: select
+
 - name: パッケージのインストール (Nginx, sslh, ufw)
   ansible.builtin.apt:
     name:
@@ -37,6 +44,10 @@
       - ufw
     state: present
     update_cache: true
+    cache_valid_time: 3600  # common で更新済みなら再実行をスキップ
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
 
 - name: "古いSSHポートの開放ルール (全許可) を削除"
   community.general.ufw:
@@ -53,16 +64,12 @@
     port: "22"
     proto: tcp
 
-- name: "SSHポートの開放 (UFW: プライベートIPからのアクセスを許可)"
+- name: "SSHポートの開放 (UFW: 緊急用ローカルLANからのアクセスを許可)"
   community.general.ufw:
     rule: allow
-    src: "{{ item }}"
+    src: 192.168.10.0/24
     port: "22"
     proto: tcp
-  loop:
-    - 10.0.0.0/8
-    - 172.16.0.0/12
-    - 192.168.0.0/16
 
 - name: "HTTP/HTTPSポートの開放 (UFW)"
   community.general.ufw:

@@ -1,0 +1,5 @@
+# Terraformのバックエンド（Cloudflare R2）接続用シークレット定義ファイルです。
+# 設定後、ファイル名を「backend.hcl」として保存してください。
+
+access_key = "YOUR_CLOUDFLARE_R2_ACCESS_KEY_ID"
+secret_key = "YOUR_CLOUDFLARE_R2_SECRET_ACCESS_KEY" # pragma: allowlist secret
