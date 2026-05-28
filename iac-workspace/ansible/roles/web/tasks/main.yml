@@ -6,41 +6,6 @@
     groups: docker
     append: true
 
-- name: Dockerリポジトリ追加のための依存パッケージをインストール
-  ansible.builtin.apt:
-    name:
-      - ca-certificates
-      - curl
-      - gnupg
-    state: present
-    update_cache: true
-
-- name: Dockerの公式GPGキー用ディレクトリの作成
-  ansible.builtin.file:
-    path: /etc/apt/keyrings
-    state: directory
-    mode: "0755"
-
-- name: Dockerの公式GPGキーの取得
-  ansible.builtin.get_url:
-    url: https://download.docker.com/linux/debian/gpg
-    dest: /etc/apt/keyrings/docker.asc
-    mode: "0644"
-
-- name: Docker公式リポジトリの追加
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.asc]
-      https://download.docker.com/linux/debian {{ ansible_facts['distribution_release'] }} stable
-    state: present
-    filename: docker
-
-- name: Docker Compose Pluginのインストール
-  ansible.builtin.apt:
-    name: docker-compose-plugin
-    state: present
-    update_cache: true
-
 - name: ベースディレクトリの作成
   ansible.builtin.file:
     path: "{{ app_dir }}"
@@ -91,39 +56,99 @@
   become: true
   become_user: "{{ app_owner }}"
 
-- name: GitHubへのデプロイキー登録確認（未登録時のみ一時停止）
-  ansible.builtin.pause:
-    prompt: |
+- name: GitHubへのデプロイキー登録確認（未登録時はエラーで公開鍵を表示）
+  ansible.builtin.fail:
+    msg: |
       ==================================================================
       GitHubへの接続に失敗しました。
-      以下の公開鍵をGitHubの「Deploy keys」に登録してください。
+      以下の公開鍵をGitHubの「Deploy keys」に登録してから再実行してください。
 
       {{ web_deploy_pub_key['content'] | b64decode }}
       ==================================================================
   when: "'successfully authenticated' not in web_github_ssh_check.stderr"
 
-- name: アプリケーションコードをGitから同期 # noqa: latest[git]
+# --- Webアプリ: コミットSHAを比較してpullが必要か判断 ---
+- name: "SHA確認 [{{ web_repo_url | basename | replace('.git', '') }}] ローカル"
+  ansible.builtin.command:
+    cmd: git rev-parse HEAD
+    chdir: "{{ app_dir }}/src_tmp"
+  register: web_local_sha
+  changed_when: false
+  failed_when: false   # 初回はsrc_tmpが存在しないためrc != 0になる
+  become: true
+  become_user: "{{ app_owner }}"
+
+- name: "SHA確認 [{{ web_repo_url | basename | replace('.git', '') }}] リモート ({{ web_git_branch | default('main') }})"
+  ansible.builtin.command:
+    cmd: git ls-remote --heads {{ web_repo_url }} {{ web_git_branch | default('main') }}
+  register: web_remote_sha
+  changed_when: false
+  environment:
+    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_deploy -o StrictHostKeyChecking=no"
+  become: true
+  become_user: "{{ app_owner }}"
+
+- name: "更新判定 [{{ web_repo_url | basename | replace('.git', '') }}]"
+  ansible.builtin.set_fact:
+    web_code_updated: >-
+      {{
+        web_force_rebuild | default(false) | bool or
+        web_local_sha.rc != 0 or
+        (web_remote_sha.stdout | trim) | length == 0 or
+        (web_remote_sha.stdout | trim).split('\t')[0] != (web_local_sha.stdout | trim)
+      }}
+
+- name: "Git同期 [{{ web_repo_url | basename | replace('.git', '') }}:{{ web_git_branch | default('main') }}] → {{ app_dir }}/src_tmp"
   ansible.builtin.git:
     repo: "{{ web_repo_url }}"
     dest: "{{ app_dir }}/src_tmp"
     update: true
     key_file: "/var/www/.ssh/id_ed25519_deploy"
     accept_hostkey: true
-    version: HEAD
+    version: "{{ web_git_branch | default('main') }}"
   become: true
   become_user: "{{ app_owner }}"
-  register: web_git_sync_result
+  when: web_code_updated
 
-- name: AlexaスキルコードをGitから同期 # noqa: latest[git]
+# --- Alexaスキル: コミットSHAを比較してpullが必要か判断 ---
+- name: "SHA確認 [{{ web_alexa_repo_url | basename | replace('.git', '') }}] ローカル"
+  ansible.builtin.command:
+    cmd: git rev-parse HEAD
+    chdir: "{{ app_dir }}/alexa_tmp"
+  register: web_alexa_local_sha
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ app_owner }}"
+
+- name: "SHA確認 [{{ web_alexa_repo_url | basename | replace('.git', '') }}] リモート ({{ web_alexa_git_branch | default('main') }})"
+  ansible.builtin.command:
+    cmd: git ls-remote --heads {{ web_alexa_repo_url }} {{ web_alexa_git_branch | default('main') }}
+  register: web_alexa_remote_sha
+  changed_when: false
+  become: true
+  become_user: "{{ app_owner }}"
+
+- name: "更新判定 [{{ web_alexa_repo_url | basename | replace('.git', '') }}]"
+  ansible.builtin.set_fact:
+    web_alexa_code_updated: >-
+      {{
+        web_force_rebuild | default(false) | bool or
+        web_alexa_local_sha.rc != 0 or
+        (web_alexa_remote_sha.stdout | trim) | length == 0 or
+        (web_alexa_remote_sha.stdout | trim).split('\t')[0] != (web_alexa_local_sha.stdout | trim)
+      }}
+
+- name: "Git同期 [{{ web_alexa_repo_url | basename | replace('.git', '') }}:{{ web_alexa_git_branch | default('main') }}] → {{ app_dir }}/alexa_tmp"
   ansible.builtin.git:
     repo: "{{ web_alexa_repo_url }}"
     dest: "{{ app_dir }}/alexa_tmp"
     update: true
     accept_hostkey: true
-    version: HEAD
+    version: "{{ web_alexa_git_branch | default('main') }}"
   become: true
   become_user: "{{ app_owner }}"
-  register: web_alexa_git_sync_result
+  when: web_alexa_code_updated
 
 - name: ソースコードを本番ディレクトリへ配置（同期） # noqa: no-handler
   ansible.posix.synchronize:
@@ -135,7 +160,7 @@
   loop:
     - html
     - quiz
-  when: web_git_sync_result.changed
+  when: web_code_updated
 
 - name: Alexaスキルコードを本番ディレクトリへ配置（同期） # noqa: no-handler
   ansible.posix.synchronize:
@@ -144,7 +169,7 @@
     rsync_opts:
       - "--exclude=.git"
   delegate_to: "{{ inventory_hostname }}"
-  when: web_alexa_git_sync_result.changed
+  when: web_alexa_code_updated
 
 - name: インフラ設定ファイル群（Docker Compose等）の配置
   ansible.builtin.copy:
@@ -178,7 +203,7 @@
 
 - name: SSL秘密鍵の配置
   ansible.builtin.copy:
-    src: secrets/web/key.pem
+    src: "{{ playbook_dir }}/../local_config/ansible/credentials/key.pem"
     dest: "{{ app_dir }}/certs/key.pem"
     owner: "{{ app_owner }}"
     group: "{{ app_group }}"
@@ -192,30 +217,56 @@
     group: "{{ app_group }}"
     mode: "0600"
 
+- name: 停止済みの競合コンテナを削除（旧Compose v1形式の残骸対策）
+  ansible.builtin.command:
+    cmd: docker container prune -f
+  changed_when: false
+
 - name: コンテナの起動・更新
   community.docker.docker_compose_v2:
     project_src: "{{ app_dir }}"
     state: present
-    build: always
+    build: policy   # イメージが存在しない場合のみビルド（毎回の全再ビルドを回避）
     remove_orphans: true
 
 - name: アプリケーションコード更新に伴うQuizコンテナの再構築と起動
   ansible.builtin.command:
     cmd: docker compose up -d --build quiz_app
     chdir: "{{ app_dir }}"
+  when: web_code_updated
   changed_when: true
 
 - name: アプリケーションコード更新に伴うAlexaスキルコンテナの再構築と起動
   ansible.builtin.command:
     cmd: docker compose up -d --build alexa_skill
     chdir: "{{ app_dir }}"
+  when: web_alexa_code_updated
   changed_when: true
 
 - name: 設定変更に伴うNginxコンテナの再起動
   ansible.builtin.command:
     cmd: docker compose restart web
     chdir: "{{ app_dir }}"
-  when: web_files_copy.changed or web_templates_copy.changed or web_env_template.changed or web_ssl_key_copy.changed or web_alexa_git_sync_result.changed
+  when: web_files_copy.changed or web_templates_copy.changed or web_env_template.changed or web_ssl_key_copy.changed or web_alexa_code_updated
   changed_when: true
+
+- name: SSL証明書期限チェックスクリプトの配置
+  ansible.builtin.template:
+    src: ssl-cert-check.sh.j2
+    dest: /usr/local/bin/ssl-cert-check.sh
+    mode: "0755"
+
+- name: SSL証明書期限チェック用systemdサービスの配置
+  ansible.builtin.template:
+    src: ssl-cert-check.service.j2
+    dest: /etc/systemd/system/ssl-cert-check.service
+    mode: "0644"
+
+- name: SSL証明書期限チェック用systemdタイマーの配置と有効化
+  ansible.builtin.template:
+    src: ssl-cert-check.timer.j2
+    dest: /etc/systemd/system/ssl-cert-check.timer
+    mode: "0644"
+  notify: Enable ssl-cert-check timer
 
 

@@ -9,3 +9,43 @@ groups:
         annotations:
           summary: "Reverse Proxy is down"
           description: "Blackbox exporter cannot reach the reverse proxy."
+
+  - name: node.rules
+    rules:
+      - alert: NodeDown
+        expr: up{job="node_exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node {{ $labels.instance }} is down"
+          description: "node_exporter on {{ $labels.instance }} has been unreachable for more than 1 minute."
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 90% on {{ $labels.instance }}."
+
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High disk usage on {{ $labels.instance }}"
+          description: "Disk usage on / is above 85% on {{ $labels.instance }}."
+
+  - name: runner.rules
+    rules:
+      - alert: GithubRunnerOffline
+        expr: probe_success{job="blackbox", instance=~".*tarakoserver.*"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GitHub Actions runner (tarakoserver) may be offline"
+          description: "tarakoserver への疎通が5分以上失敗しています。Self-hosted runner が停止している可能性があります。"

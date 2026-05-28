@@ -47,3 +47,12 @@ ehthumbs.db
 Desktop.ini
 
 *:Zone.Identifier
+
+# Ignore local configs and raw credentials under local_config/ directory
+local_config/ansible/*
+!local_config/ansible/*.example
+local_config/ansible/credentials/*
+!local_config/ansible/credentials/*.example
+!local_config/ansible/credentials/*.enc
+local_config/terraform/*
+!local_config/terraform/*.example

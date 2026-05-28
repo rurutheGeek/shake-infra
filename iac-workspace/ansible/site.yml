@@ -1,74 +1,149 @@
 ---
+# =====================================================================
+# site.yml - 全ノード展開プレイブック
+#
+# 実行フロー（並列化設計）:
+#
+#  Phase 1: common          全3ノード並列
+#  Phase 2: proxy           negitoroserver のみ
+#           exporters       全3ノード並列
+#  Phase 3: docker          home_node1 / home_node2 並列
+#  Phase 4: サービス展開    home_node1 / home_node2 を strategy:free で並列実行
+#           ┌─ home_node1: ups_exporter → postgres → minecraft
+#           │               → web → ubsleepy → ubsleepy_backup
+#           └─ home_node2: monitoring → github_runner
+#            （docker完了後、両ノードが互いを待たずに独立して進む）
+#
+# =====================================================================
+
+# =====================================================================
+# Phase 1: 全ノード共通設定
+# =====================================================================
 - name: 共通設定と自動アップデートの適用
   hosts: all
   become: true
   roles:
-    - { role: common, tags: common }
+    - { role: common }
+  tags: common
 
+# =====================================================================
+# Phase 2: プロキシノード構成 & 監視エージェント
+# =====================================================================
 - name: プロキシノードの構成
   hosts: proxy_node
   become: true
   roles:
-    - { role: proxy, tags: proxy }
+    - { role: proxy }
+  tags: proxy
 
 - name: 監視エージェントの一括導入
   hosts: all
   become: true
   roles:
-    - { role: exporters, tags: exporters }
+    - { role: exporters }
+  tags: exporters
 
-- name: メインサーバーのUPS監視とDB/Minecraft/Webの構成
-  hosts: home_node1
+# =====================================================================
+# Phase 3: Docker環境（home_node1/2 並列）
+# =====================================================================
+- name: Docker環境の構成
+  hosts: home_node1, home_node2
   become: true
-  vars:
-    repo_url_ups: "https://github.com/rurutheGeek/ups-exporter.git"
-    install_dir_ups: "/opt/ups-exporter"
-    run_user_ups: "ansible_admin"
-    pg_dir: /opt/postgres
-    mc_dir: /opt/minecraft
-    app_owner: www-data
-    app_group: www-data
-    app_dir: /var/www/html/shake
-    repo_url_web: git@github.com:rurutheGeek/shake-web.git
-    repo_url_ubsleepy: "https://github.com/rurutheGeek/UBSLEEPY.git"
-    ubsleepy_dir: "/opt/ubsleepy"
-    ubsleepy_r2_bucket: "ubsleepy-app-data" # Terraformで作成された実際のバケット名
-    ubsleepy_r2_object_key: "app_data.zip" # 仮の値。実際のオブジェクトキーに置き換える。
-    ubsleepy_r2_endpoint: "43b2b53511f5cc6221885020999d30e6.r2.cloudflarestorage.com" # Cloudflare R2のエンドポイント
   roles:
-    - role: ups_exporter
-      vars:
-        ups_exporter_repo_url: "{{ repo_url_ups }}"
-        ups_exporter_install_dir: "{{ install_dir_ups }}"
-        ups_exporter_run_user: "{{ run_user_ups }}"
-      tags: ups_exporter
-    - { role: postgres, tags: postgres }
-    - { role: minecraft, tags: minecraft }
-    - role: web
-      vars:
-        web_repo_url: "{{ repo_url_web }}"
-        web_alexa_repo_url: "https://github.com/rurutheGeek/pokebs_alexaskill.git"
-      tags: web
-    - role: ubsleepy
-      vars:
-        ubsleepy_repo_url: "{{ repo_url_ubsleepy }}"
+    - { role: docker }
+  tags: docker
 
+# =====================================================================
+# Phase 4: サービス展開（home_node1/2 を strategy:free で並列実行）
+#
+# strategy: free により、各ホストが他ホストの完了を待たずに独立して進む。
+# home_node2 は home_node1 専用タスクを即座にスキップし、
+# monitoring/github_runner を home_node1 の処理と並行して実行する。
+# =====================================================================
+- name: 各ノードへのサービス展開（並列実行）
+  hosts: home_node1, home_node2
+  become: true
+  strategy: free
+  tasks:
+
+    # ------------------------------------------------------------------
+    # home_node1 専用ロール
+    # ------------------------------------------------------------------
+    - name: メインサーバーのUPS監視の構成
+      ansible.builtin.include_role:
+        name: ups_exporter
+      vars:
+        ups_exporter_repo_url: "https://github.com/rurutheGeek/ups-exporter.git"
+        ups_exporter_install_dir: "/opt/ups-exporter"
+        ups_exporter_run_user: "ansible_admin"
+      when: inventory_hostname in groups['home_node1']
+      tags: ups_exporter
+
+    - name: メインサーバーのPostgreSQLの構成
+      ansible.builtin.include_role:
+        name: postgres
+      vars:
+        pg_dir: /opt/postgres
+      when: inventory_hostname in groups['home_node1']
+      tags: postgres
+
+    - name: メインサーバーのMinecraftの構成
+      ansible.builtin.include_role:
+        name: minecraft
+      vars:
+        mc_dir: /opt/minecraft
+      when: inventory_hostname in groups['home_node1']
+      tags: minecraft
+
+    - name: メインサーバーのWebアプリケーションの構成
+      ansible.builtin.include_role:
+        name: web
+      vars:
+        app_owner: www-data
+        app_group: www-data
+        app_dir: /var/www/html/shake
+        web_repo_url: "git@github.com:rurutheGeek/shake-web.git"
+        web_alexa_repo_url: "https://github.com/rurutheGeek/pokebs_alexaskill.git"
+      when: inventory_hostname in groups['home_node1']
+      tags: web
+
+    - name: メインサーバーのDiscord Bot (UBSLEEPY) の構成
+      ansible.builtin.include_role:
+        name: ubsleepy
+      vars:
+        ubsleepy_repo_url: "https://github.com/rurutheGeek/UBSLEEPY.git"
+        ubsleepy_dir: "/opt/ubsleepy"
         ubsleepy_r2_access_key_id: "{{ cf_access_key }}"
         ubsleepy_r2_secret_access_key: "{{ cf_secret_key }}"
+      when: inventory_hostname in groups['home_node1']
       tags: ubsleepy
-    - role: ubsleepy_backup
+
+    - name: メインサーバーの自動バックアップの構成
+      ansible.builtin.include_role:
+        name: ubsleepy_backup
       vars:
-        ubsleepy_backup_r2_bucket: "{{ ubsleepy_r2_bucket }}"
-        ubsleepy_backup_r2_endpoint: "{{ ubsleepy_r2_endpoint }}"
+        ubsleepy_backup_r2_bucket: "ubsleepy-app-data"
+        ubsleepy_backup_r2_endpoint: "43b2b53511f5cc6221885020999d30e6.r2.cloudflarestorage.com"
         ubsleepy_backup_r2_access_key_id: "{{ cf_access_key }}"
         ubsleepy_backup_r2_secret_access_key: "{{ cf_secret_key }}"
-        ubsleepy_backup_max_backups: 7 # 7世代のバックアップを保持
+        ubsleepy_backup_max_backups: 7
+      when: inventory_hostname in groups['home_node1']
       tags: ubsleepy_backup
 
-- name: 監視サーバーへの監視スタックデプロイ
-  hosts: home_node2
-  become: true
-  roles:
-    - { role: monitoring, tags: monitoring }
-    - { role: github_runner, tags: github_runner }
+    # ------------------------------------------------------------------
+    # home_node2 専用ロール
+    # ------------------------------------------------------------------
+    - name: 監視サーバーへの監視スタックデプロイ
+      ansible.builtin.include_role:
+        name: monitoring
+      when: inventory_hostname in groups['home_node2']
+      tags: monitoring
 
+    - name: 監視サーバーへのGitHub Runnerのセットアップ
+      ansible.builtin.include_role:
+        name: github_runner
+      when:
+        - inventory_hostname in groups['home_node2']
+        - github_repo_url is defined
+        - github_runner_token is defined
+      tags: github_runner

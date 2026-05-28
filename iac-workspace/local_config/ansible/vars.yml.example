@@ -1,0 +1,18 @@
+# 各使用者が設定を変更する公開設定変数ファイルのテンプレートです。
+# 設定後、ファイル名を「vars.yml」として保存してください。
+
+ansible_python_interpreter: auto_silent
+
+db_user_reader: pkdb_reader
+db_user_editor: pkdb_editor
+db_name: sleepy_pkdb
+db_port: 5432
+db_host: YOUR_DATABASE_HOST_IP
+
+mc_resource_pack_url: YOUR_MINECRAFT_RESOURCE_PACK_URL
+mc_resource_pack_hash: YOUR_MINECRAFT_RESOURCE_PACK_HASH
+cf_account_id: YOUR_CLOUDFLARE_ACCOUNT_ID
+cf_bucket_name: YOUR_CLOUDFLARE_R2_BUCKET_NAME
+
+# Discord電源状態通知用のWebhookマッピング
+discord_webhook_url: "{{ ubsleepy_backup_discord_webhook }}"
