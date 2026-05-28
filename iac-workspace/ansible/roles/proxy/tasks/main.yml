@@ -59,8 +59,7 @@
 - name: "SSHポートの開放 (UFW: Tailscale経由を許可)"
   community.general.ufw:
     rule: allow
-    interface: tailscale0
-    direction: in
+    src: 100.64.0.0/10
     port: "22"
     proto: tcp
 
