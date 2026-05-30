@@ -32,6 +32,17 @@ jobs:
           chmod 600 "${{ env.ANSIBLE_PRIVATE_KEY_FILE }}"
           echo "${{ secrets.ANSIBLE_VAULT_PASS }}" > "${{ env.ANSIBLE_VAULT_PASS_FILE }}"
           chmod 600 "${{ env.ANSIBLE_VAULT_PASS_FILE }}"
+          mkdir -p iac-workspace/local_config/ansible
+          cat << 'EOF' > iac-workspace/local_config/ansible/inventory.ini
+          [proxy_node]
+          negitoroserver ansible_host=100.92.253.28 ansible_user=ansible_admin
+
+          [home_node1]
+          shakeserver ansible_host=100.116.167.59 ansible_user=ansible_admin
+
+          [home_node2]
+          tarakoserver ansible_host=100.123.163.119 ansible_user=ansible_admin
+          EOF
 
       - name: Install Ansible Collections
         run: |
@@ -42,7 +53,7 @@ jobs:
         if: github.event.action == 'deploy_ubsleepy' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'ubsleepy')
         run: |
           cd iac-workspace
-          ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags ubsleepy \
+          ansible-playbook -i local_config/ansible/inventory.ini ansible/site.yml --tags ubsleepy \
             --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
             --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}"
 
@@ -50,7 +61,7 @@ jobs:
         if: github.event.action == 'deploy_shakeweb' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'shakeweb')
         run: |
           cd iac-workspace
-          ansible-playbook -i ansible/inventory.ini ansible/site.yml --tags web \
+          ansible-playbook -i local_config/ansible/inventory.ini ansible/site.yml --tags web \
             --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
             --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}"
 

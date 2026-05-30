@@ -3,10 +3,32 @@
   hosts: all
   become: true
   tasks:
+    # home_node1（メインサーバー）の稼働コンテナ群を安全停止
+    - name: Webアプリ関連コンテナを安全に停止
+      community.docker.docker_container:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - shake_web
+        - bsquiz
+        - alexa_skill
+      when: "'home_node1' in group_names"
+      failed_when: false
+
+    - name: Discord Bot (ubsleepy) コンテナを安全に停止
+      community.docker.docker_container:
+        name: ubsleepy_bot
+        state: stopped
+      when: "'home_node1' in group_names"
+      failed_when: false
+
     - name: Minecraftコンテナを安全に停止
       community.docker.docker_container:
-        name: shake_minecraft-pixelmon1.21.1
+        name: "{{ item }}"
         state: stopped
+      loop:
+        - shake_minecraft-pixelmon1.21.1
+        - shake_minecraft-pixelmon1.21.1-backup
       when: "'home_node1' in group_names"
       failed_when: false
 
@@ -21,6 +43,14 @@
       when: "'home_node1' in group_names"
       failed_when: false
 
+    - name: cAdvisor監視エージェントを安全に停止
+      community.docker.docker_container:
+        name: cadvisor
+        state: stopped
+      when: "'home_node1' in group_names or 'home_node2' in group_names"
+      failed_when: false
+
+    # home_node2（監視サーバー）の稼働コンテナ群を安全停止
     - name: 監視スタックコンテナを安全に停止
       community.docker.docker_container:
         name: "{{ item }}"
@@ -28,7 +58,17 @@
       loop:
         - prometheus
         - grafana
+        - alertmanager
         - blackbox_exporter
+        - loki
+        - promtail
+      when: "'home_node2' in group_names"
+      failed_when: false
+
+    - name: GitHub Actions セルフホストランナーを安全に停止
+      community.docker.docker_container:
+        name: github_runner
+        state: stopped
       when: "'home_node2' in group_names"
       failed_when: false
 
@@ -37,3 +77,4 @@
       async: 1
       poll: 0
       failed_when: false
+      changed_when: true

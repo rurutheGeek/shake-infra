@@ -1,76 +1,82 @@
 # shake インフラ基盤構成管理リポジトリ
 
-複数台の Raspberry Pi で構成される自宅サーバー環境（shake基盤）のインフラ構築・構成管理、および各種コンテナアプリケーションのデプロイを完全自動化するための IaC（Infrastructure as Code）リポジトリです。
+複数台の Raspberry Pi で構成される自宅サーバー環境（shake 基盤）のインフラ構築・構成管理、および各種コンテナアプリケーションのデプロイを完全自動化する IaC（Infrastructure as Code）リポジトリです。
+
+本 README はプロジェクトの入口です。全体像の把握と各ドキュメントへの案内を目的とし、詳細な構成定義や手順は配下のドキュメントに委ねます。
 
 ---
 
-## システムアーキテクチャ
+## システム構成図
 
-- プロビジョニング (Terraform): Cloudflare DNSレコード管理、R2バケット（バックアップ・データ保管用）の自動構築。
-- ネットワーク (Tailscale): 各ノード間をセキュアなプライベートメッシュVPNで接続。
-- 構成管理・デプロイ (Ansible): OS基本設定、ファイアウォール（UFW）、監視エージェント、および各アプリケーションコンテナの展開・制御。
-  - 稼働サービス: PostgreSQL 15, Minecraft Reforged, Discord Bot (ubsleepy)
-    - 監視基盤: Prometheus + Grafana によるメトリクス可視化、Grafana Loki + Promtail によるログ集約、およびUPS（無停電電源装置）のステータス監視。
-    - 自動バックアップ: Systemd Timer と連動した R2 への日次自動バックアップと、Discord への結果通知。
-    - 高可用性 (自動フェイルオーバー): 自宅サーバーダウン時に Cloudflare Workers（ミニゲーム付きメンテナンス画面）へルーティングを完全自動で切り替え。
+物理・論理の 2 視点で全体像をまとめています。拡大版・各図の解説・再生成手順は [docs/00_構成図.md](docs/00_構成図.md) を参照してください。
+
+### 物理構成（拠点・機材・電源・ネットワーク）
+![物理構成図](docs/diagrams/physical.svg)
+
+### 論理構成（サービス・トラフィック・データフロー）
+![論理構成図](docs/diagrams/logical.svg)
 
 ---
 
-## ディレクトリ構成
+## システムアーキテクチャ（概要）
+
+- プロビジョニング (Terraform): Cloudflare DNS レコード管理、R2 バケット（バックアップ・データ保管用）の自動構築。
+- ネットワーク (Tailscale): 3 拠点のノード間をポート開放なしのメッシュ VPN で接続。外部公開は大学拠点のプロキシ（Raspberry Pi Zero 2 W）に集約し、自宅へグローバル IP を露出させない。
+- 構成管理・デプロイ (Ansible): OS 基本設定、ファイアウォール（UFW）、監視エージェント、各アプリケーションコンテナの展開・制御。
+- 稼働サービス: PostgreSQL 15 / Minecraft (Pixelmon Reforged) / Web + Alexa Skill / Discord Bot (UBSLEEPY)。
+- 監視・通知: Prometheus + Grafana + Loki + Alertmanager によるメトリクス・ログ統合、UPS ステータス監視、Discord への能動通知。
+- 自動バックアップ: DB・Minecraft ワールド・Bot セーブをそれぞれ日次で Cloudflare R2 へ転送（月次リストアテスト付き）。
+- 高可用性: ノードダウン時に Cloudflare Workers（メンテナンス画面）へルーティングを自動フェイルオーバー。
+
+---
+
+## ドキュメント案内
+
+### 構成図
+- [docs/00_構成図.md](docs/00_構成図.md) — 物理／論理構成図（Mermaid・D2）と各図の解説。図のソース・出力は [docs/diagrams/](docs/diagrams/) に格納。
+
+### 構築・運用マニュアル（全 10 章 / docs/）
+初期セットアップから日々の運用、障害復旧（DR）までの手順を時系列でまとめています。運用引き継ぎの際はこちらを参照してください。
+
+1. [IaC環境構築と初期プロビジョニング](docs/01_IaC環境構築と初期プロビジョニング.md) — WSL2/Ansible/Terraform の準備と全ノード共通設定
+2. [ネットワーク基盤](docs/02_ネットワーク基盤.md) — Tailscale VPN、リバースプロキシ、UFW の IP 戦略
+3. [機密情報管理](docs/03_機密情報管理.md) — Ansible Vault、Terraform Secret 自動登録、漏洩防止
+4. [監視・ログ・通知基盤](docs/04_監視・ログ・通知基盤.md) — Prometheus/Grafana/Loki/Alertmanager/Discord
+5. [アプリのコンテナ化と運用](docs/05_アプリのコンテナ化と運用.md) — PostgreSQL/Minecraft/Web+Alexa/Discord Bot
+6. [高可用性とシステム堅牢化](docs/06_高可用性とシステム堅牢化.md) — Cloudflare Workers failover/SWAP/Drift/リストアテスト
+7. [CI（コード品質と静的検証）](docs/07_CI（コード品質と静的検証）.md) — ansible-lint / terraform validate / Trivy / Plan PR コメント
+8. [CD（自動デプロイ）](docs/08_CD（自動デプロイ）.md) — Self-hosted Runner / Repository Dispatch / strategy:free
+9. [技術スタックと選定根拠](docs/09_技術スタックと選定根拠.md) — 各ツール採用理由と代替案比較
+10. [今後の展望](docs/10_今後の展望.md) — 未着手の補強項目とロードマップ
+
+マニュアルの執筆ガイドライン（章構成・記述規約）は [docs/README.md](docs/README.md) を参照してください。
+
+### IaC 設計・構成定義
+- [iac-workspace/README.md](iac-workspace/README.md) — ディレクトリツリー全体像、Ansible Roles 一覧、Terraform 定義、統合管理スクリプト（run_playbook.sh）のメニュー詳細、セキュリティガイドライン。
+
+---
+
+## リポジトリ構成
 
 ```text
 infra/
-├── docs/                                 # 構築・移行手順マニュアル（全7章）
-├── iac-workspace/                        # IaC (構成管理) コード本体
-│   ├── ansible/                          # サーバー構成・デプロイ定義 (Playbook/Roles)
-│   ├── local_config/                     # 使用者ごとの個人設定コンフィグおよび機密情報（平文はGit管理外）
-│   │   ├── ansible/                      # Ansible用の設定・変数・鍵情報
-│   │   └── terraform/                    # Terraform用の変数・バックエンド設定
-│   └── terraform/                        # Cloudflare リソース定義
-└── output/                               # 運用ログ・作業日誌
+├── docs/            # 構築・運用マニュアル（全10章）と構成図
+│   └── diagrams/    # 構成図のソース（.d2）と出力（.svg）
+├── iac-workspace/   # IaC（構成管理）コード本体（Ansible / Terraform）
+└── output/          # 運用ログ・作業日誌
 ```
 
-より詳細なIaC設計や各Roleの役割、機密情報の管理手法については [iac-workspace/README.md](iac-workspace/README.md) を参照してください。
-
----
-
-## ドキュメント一覧
-
-初期セットアップから日々の運用、障害復旧（DR）までの手順を時系列でまとめています。運用引き継ぎの際はこちらを参照してください。
-
-1. [IaC環境構築と初期プロビジョニング手順](docs/01_IaC環境構築と初期プロビジョニング手順.md)
-2. [TailscaleによるセキュアVPNネットワーク構築手順](docs/02_TailscaleによるセキュアVPNネットワーク構築手順.md)
-3. [監視基盤の構築とDiscordアラート連携手順](docs/03_監視基盤の構築とDiscordアラート連携手順.md)
-4. [リバースプロキシ構築とAnsibleVault機密情報管理手順](docs/04_リバースプロキシ構築とAnsibleVault機密情報管理手順.md)
-5. [各種アプリのコンテナ移行とバックアップ自動化手順](docs/05_各種アプリのコンテナ移行とバックアップ自動化手順.md)
-6. [インフラ運用の自動化とシステム堅牢化手順](docs/06_インフラ運用の自動化とシステム堅牢化手順.md)
-7. [CI/CDパイプラインと自動デプロイ構築手順](docs/07_CI-CDパイプラインと自動デプロイ構築手順.md)
+各ディレクトリの詳細は配下の README を参照してください。
 
 ---
 
 ## クイックスタート
 
-本プロジェクトでは、インフラのデプロイや安全な電源操作を直感的に実行できる統合管理スクリプト [run_playbook.sh](iac-workspace/run_playbook.sh) を提供しています。
-
-### 1. 認証情報の準備
-
-1. Terraform 実行用の環境変数 (terraform.tfvars) を用意します。
-2. Ansible 実行用の Vault パスワードファイル (.vault_pass) を iac-workspace/local_config/ansible/credentials/ 配下に配置します。
-3. 機密情報（パスワードやAPIキー）を定義した vault.yml を暗号化します。
-   ```bash
-   ansible-vault encrypt iac-workspace/local_config/ansible/credentials/vault.yml
-   ```
-
-### 2. 統合管理スクリプトの実行
-
-対話式メニューに従ってアクションを選択するだけで、安全に構成管理を適用できます。
+本プロジェクトの構成管理・品質検証・電源操作は、統合管理スクリプト [run_playbook.sh](iac-workspace/run_playbook.sh) を通じて対話的に実行します。
 
 ```bash
 cd iac-workspace
 ./run_playbook.sh
 ```
 
-【主なメニュー構成】
-- [1] テスト・検証フェーズ: 構文チェックやドライラン（模擬実行）による安全性の確認。
-- [2] デプロイ反映フェーズ: 全サービスの一括展開、または特定アプリ（Web, DB, Minecraft, バックアップ等）の個別反映。
-- [3] サーバー電源・ライフサイクル操作: コンテナ群を安全に停止させた上での、ホストOSの一括シャットダウン・再起動（予期せぬ電源断のDiscord通知機能付き）。
+認証情報の準備（Terraform 変数、Ansible Vault パスワード、vault.yml の暗号化）と、メニューの詳細な内訳については [iac-workspace/README.md](iac-workspace/README.md) を参照してください。

@@ -18,32 +18,41 @@
 
 set -e
 
+# 引数モード判定（cleanup 関数で参照するため早期に判定）
+USE_ARGS=false
+[ -n "$1" ] && USE_ARGS=true
+
 # エラー終了時に一時停止し、bash を起動してWSLが閉じるのを防ぐ
 cleanup() {
   local exit_code=$?
   if [ "$exit_code" -ne 0 ]; then
     echo
     echo "[エラーが発生したため、処理を中断しました（ステータスコード: $exit_code）]"
-    echo "Enterキーを押すとシェルに戻ります..."
-    read -r < /dev/tty   # stdin が閉じていても端末から直接読む
-    exec bash < /dev/tty  # --login なしで起動（プロファイルによる即終了を回避）
+    if [ "$USE_ARGS" = "false" ]; then
+      echo "Enterキーを押すとシェルに戻ります..."
+      read -r < /dev/tty   # stdin が閉じていても端末から直接読む
+      exec bash < /dev/tty  # --login なしで起動（プロファイルによる即終了を回避）
+    else
+      exit "$exit_code"
+    fi
   fi
 }
 trap cleanup EXIT
 
 cd "$(dirname "$0")"
 
+# ログディレクトリの自動作成と Ansible ログパスの設定
+mkdir -p logs
+export ANSIBLE_LOG_PATH="logs/ansible_$(date +%Y%m%d_%H%M%S).log"
+
 # Vaultパスワードファイルを環境変数に設定（毎回の手入力を省略）
 export ANSIBLE_VAULT_PASSWORD_FILE="local_config/ansible/credentials/.vault_pass"
 
-PLAYBOOK="ansible-playbook -i local_config/ansible/inventory.ini \
+PLAYBOOK=(ansible-playbook -i local_config/ansible/inventory.ini \
   -e @local_config/ansible/vars.yml \
   -e @local_config/ansible/credentials/vault.yml \
-  ansible/site.yml"
+  ansible/site.yml)
 
-# 引数モード判定
-USE_ARGS=false
-[ -n "$1" ] && USE_ARGS=true
 
 echo "-------------------------------------------------------------"
 echo "  IaC Workspace - インフラ検証および本番適用ツール"
@@ -195,10 +204,10 @@ case "$MAIN_MODE" in
     fi
 
     case "$TARGET" in
-      1) TARGET_LABEL="全サーバー一括";              LIMIT="";                          HOSTS="all" ;;
-      2) TARGET_LABEL="shakeserver (メイン)";        LIMIT="--limit shakeserver";       HOSTS="shakeserver" ;;
-      3) TARGET_LABEL="tarakoserver (監視)";         LIMIT="--limit tarakoserver";      HOSTS="tarakoserver" ;;
-      4) TARGET_LABEL="negitoroserver (プロキシ)";   LIMIT="--limit negitoroserver";    HOSTS="negitoroserver" ;;
+      1) TARGET_LABEL="全サーバー一括";              LIMIT_HOST="";                     HOSTS="all" ;;
+      2) TARGET_LABEL="shakeserver (メイン)";        LIMIT_HOST="shakeserver";          HOSTS="shakeserver" ;;
+      3) TARGET_LABEL="tarakoserver (監視)";         LIMIT_HOST="tarakoserver";         HOSTS="tarakoserver" ;;
+      4) TARGET_LABEL="negitoroserver (プロキシ)";   LIMIT_HOST="negitoroserver";       HOSTS="negitoroserver" ;;
       *) echo "[Error] 無効なターゲット番号です: $TARGET"; exit 1 ;;
     esac
     ;;
@@ -258,75 +267,94 @@ case "$MAIN_MODE" in
         ;;
       2)
         echo -e "\n>>> 構文（シンタックス）チェックを実行します..."
-        $PLAYBOOK --syntax-check
+        "${PLAYBOOK[@]}" --syntax-check
         echo ">>> 全Playbookの構文にエラーはありません。"
         ;;
       3)
         echo -e "\n>>> 模擬実行（Check Mode）を開始します..."
-        $PLAYBOOK --check
+        "${PLAYBOOK[@]}" --check
         echo ">>> 模擬実行が完了しました。"
         ;;
     esac
     ;;
 
   2)
+    TAGS=""
+    LIMIT=""
+    EXTRA_ARGS=()
+    MSG=""
+
     case "$SUB_MODE" in
-      1)
-        echo -e "\n>>> 本番環境への適用を開始します..."
-        $PLAYBOOK
-        echo ">>> 適用処理が正常に完了しました。"
-        ;;
-      2)
-        echo -e "\n>>> Webアプリのみデプロイを開始します..."
-        $PLAYBOOK --tags web
-        ;;
-      3)
-        echo -e "\n>>> PostgreSQLのみデプロイを開始します..."
-        $PLAYBOOK --tags postgres
-        ;;
-      4)
-        echo -e "\n>>> Minecraftのみデプロイを開始します..."
-        $PLAYBOOK --tags minecraft
-        ;;
-      5)
-        echo -e "\n>>> Discord Botのみデプロイを開始します..."
-        $PLAYBOOK --tags ubsleepy
-        ;;
-      6)
-        echo -e "\n>>> 自動バックアップのみデプロイを開始します..."
-        $PLAYBOOK --tags ubsleepy_backup
-        ;;
-      7)
-        echo -e "\n>>> UPS監視のみデプロイを開始します..."
-        $PLAYBOOK --tags ups_exporter
-        ;;
-      8)
-        echo -e "\n>>> GitHub Runnerのデプロイを実行します..."
-        $PLAYBOOK --tags github_runner \
-          -e "github_repo_url=$REPO_URL" \
-          -e "github_runner_token=$RUNNER_TOKEN"
-        echo ">>> Runnerのセットアップが完了しました！"
-        ;;
-      9)
-        echo -e "\n>>> Docker環境のセットアップを開始します..."
-        $PLAYBOOK --tags docker
-        ;;
-      10)
-        echo -e "\n>>> 監視スタック（Prometheus / Grafana / Loki / Promtail）のみデプロイを開始します..."
-        $PLAYBOOK --tags monitoring
-        ;;
+      1)  MSG="本番環境への適用（全サービスの一括展開）を開始します..."
+          TAGS=""
+          LIMIT="" ;;
+      2)  MSG="Webアプリのみデプロイを開始します..."
+          TAGS="web"
+          LIMIT="home_node1" ;;
+      3)  MSG="PostgreSQLのみデプロイを開始します..."
+          TAGS="postgres"
+          LIMIT="home_node1" ;;
+      4)  MSG="Minecraftのみデプロイを開始します..."
+          TAGS="minecraft"
+          LIMIT="home_node1" ;;
+      5)  MSG="Discord Botのみデプロイを開始します..."
+          TAGS="ubsleepy"
+          LIMIT="home_node1" ;;
+      6)  MSG="自動バックアップのみデプロイを開始します..."
+          TAGS="ubsleepy_backup"
+          LIMIT="home_node1" ;;
+      7)  MSG="UPS監視のみデプロイを開始します..."
+          TAGS="ups_exporter"
+          LIMIT="home_node1" ;;
+      8)  MSG="GitHub Runnerのデプロイを実行します..."
+          TAGS="github_runner"
+          LIMIT="home_node2"
+          EXTRA_ARGS=(-e "github_repo_url=$REPO_URL" -e "github_runner_token=$RUNNER_TOKEN") ;;
+      9)  MSG="Docker環境のセットアップを開始します..."
+          TAGS="docker"
+          LIMIT="home_node1,home_node2" ;;
+      10) MSG="監視スタック（Prometheus / Grafana / Loki / Promtail）のみデプロイを開始します..."
+          TAGS="monitoring"
+          LIMIT="home_node2" ;;
     esac
+
+    echo -e "\n>>> $MSG"
+    
+    # コマンドの組み立て
+    CMD=("${PLAYBOOK[@]}")
+    if [ -n "$TAGS" ]; then
+      CMD+=("--tags" "$TAGS")
+    fi
+    if [ -n "$LIMIT" ]; then
+      CMD+=("--limit" "$LIMIT")
+    fi
+    if [ "${#EXTRA_ARGS[@]}" -gt 0 ]; then
+      CMD+=("${EXTRA_ARGS[@]}")
+    fi
+
+    # コマンド実行
+    "${CMD[@]}"
+
+    if [ "$SUB_MODE" = "1" ]; then
+      echo ">>> 適用処理が正常に完了しました。"
+    elif [ "$SUB_MODE" = "8" ]; then
+      echo ">>> Runnerのセットアップが完了しました！"
+    fi
     ;;
 
   3)
     case "$SUB_MODE" in
       1)
         echo -e "\n>>> 安全なシャットダウンを開始します..."
-        ansible-playbook \
+        SHUTDOWN_CMD=(ansible-playbook \
           -i local_config/ansible/inventory.ini \
           -e @local_config/ansible/vars.yml \
           -e @local_config/ansible/credentials/vault.yml \
-          ansible/playbooks/shutdown_servers.yml $LIMIT
+          ansible/playbooks/shutdown_servers.yml)
+        if [ -n "$LIMIT_HOST" ]; then
+          SHUTDOWN_CMD+=("--limit" "$LIMIT_HOST")
+        fi
+        "${SHUTDOWN_CMD[@]}"
         echo ">>> シャットダウン命令の送信が完了しました。"
         ;;
       2)

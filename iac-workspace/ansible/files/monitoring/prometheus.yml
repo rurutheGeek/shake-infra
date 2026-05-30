@@ -40,3 +40,4 @@ scrape_configs:
     static_configs:
       - targets:
           - '100.116.167.59:8090'
+          - 'localhost:8090'

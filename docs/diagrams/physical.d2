@@ -1,0 +1,115 @@
+# shake 基盤 物理構成図 (D2)
+# 描画: d2 physical.d2 physical.svg
+# 注: 機器型番 / RAM / DS-Lite はリポジトリ外の情報（実機ベース）
+
+direction: right
+
+home: "自宅ネットワーク (DS-Lite / 外部公開不可)" {
+  style.fill: "#e0f7fa"
+
+  ups1: "UPS\nCyberPower CP1200PFCLCDJP" {
+    shape: hexagon
+    style.fill: "#f3e5f5"
+    style.stroke: "#6a1b9a"
+  }
+  ups2: "UPS\nGeekworm X1202" {
+    shape: hexagon
+    style.fill: "#f3e5f5"
+    style.stroke: "#6a1b9a"
+  }
+  router: "ホームルーター\nAterm-WG1200HP4"
+  switch: "スイッチングハブ\nTP-Link TL-SG605"
+  pi5: "shakeserver [home_node1]\nRaspberry Pi 5 (8GB)\nメインノード（アプリ本体）" {
+    style.fill: "#c8e6c9"
+    style.stroke: "#2e7d32"
+  }
+  pi4: "tarakoserver [home_node2]\nRaspberry Pi 4 (4GB)\n監視ノード + CI Runner" {
+    style.fill: "#c8e6c9"
+    style.stroke: "#2e7d32"
+  }
+
+  # データリンク (L2)
+  router -> switch: "LAN"
+  switch -> pi5: "LAN"
+  switch -> pi4: "LAN"
+
+  # 電源系統
+  ups1 -> router: "給電" {
+    style.stroke: "#ef6c00"
+    style.stroke-dash: 3
+  }
+  ups1 -> switch: "給電" {
+    style.stroke: "#ef6c00"
+    style.stroke-dash: 3
+  }
+  ups1 -> pi4: "給電" {
+    style.stroke: "#ef6c00"
+    style.stroke-dash: 3
+  }
+  ups1 -> pi5: "給電（商用電源側）" {
+    style.stroke: "#ef6c00"
+    style.stroke-dash: 3
+  }
+  ups2 -> pi5: "給電（基板側 / 二重化）" {
+    style.stroke: "#ef6c00"
+    style.stroke-dash: 3
+  }
+}
+
+univ: "大学ネットワーク (グローバルIP公開点)" {
+  style.fill: "#e8eaf6"
+  pizero: "negitoroserver [proxy_node]\nRaspberry Pi Zero 2 W\nプロキシノード" {
+    style.fill: "#bbdefb"
+    style.stroke: "#1565c0"
+  }
+}
+
+ts: "Tailscale VPN\n(WireGuard / 100.64.0.0/10)" {
+  shape: circle
+  style.stroke: "#6a1b9a"
+  style.stroke-dash: 3
+}
+
+net: "外部インターネット" {
+  style.fill: "#fff3e0"
+  user: "外部ユーザ" {
+    shape: person
+  }
+  workers: "CF Workers\nメンテナンス / Failover" {
+    style.stroke: "#6a1b9a"
+  }
+  r2: "Cloudflare R2\n(外部バックアップ)" {
+    shape: cylinder
+    style.stroke: "#1565c0"
+  }
+}
+
+# Tailscale メッシュ（オーバーレイ）
+univ.pizero <-> ts: "Tailscale" {
+  style.stroke: "#1565c0"
+  style.stroke-dash: 3
+}
+home.pi5 <-> ts: "Tailscale" {
+  style.stroke: "#1565c0"
+  style.stroke-dash: 3
+}
+home.pi4 <-> ts: "Tailscale" {
+  style.stroke: "#1565c0"
+  style.stroke-dash: 3
+}
+
+# 外部トラフィック / フェイルオーバー / バックアップ
+net.user -> univ.pizero: "HTTP / HTTPS" {
+  style.stroke: "#9e9d24"
+}
+net.user -> net.workers: "障害時 HTTP 503" {
+  style.stroke: "#ef6c00"
+  style.stroke-dash: 3
+}
+home.pi4 -> net.workers: "自動切替 (ダウン検知)" {
+  style.stroke: "#ef6c00"
+  style.stroke-dash: 3
+}
+home.pi5 -> net.r2: "日次バックアップ送信" {
+  style.stroke: "#9e9d24"
+}
