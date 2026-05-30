@@ -45,6 +45,7 @@ jobs:
           echo "$ANSIBLE_VARS" > iac-workspace/local_config/ansible/vars.yml
           cp iac-workspace/local_config/ansible/credentials/vault.yml.enc iac-workspace/local_config/ansible/credentials/vault.yml
           cp iac-workspace/local_config/ansible/credentials/key.pem.enc iac-workspace/local_config/ansible/credentials/key.pem
+          ansible-vault decrypt iac-workspace/local_config/ansible/credentials/key.pem --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}"
           cat << 'EOF' > iac-workspace/local_config/ansible/inventory.ini
           [proxy_node]
           negitoroserver ansible_host=100.92.253.28 ansible_user=ansible_admin
