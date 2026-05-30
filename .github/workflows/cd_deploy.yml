@@ -10,6 +10,11 @@ on:
         options:
           - ubsleepy
           - shakeweb
+      dry_run:
+        description: 'Dry Run (Simulation only)'
+        required: false
+        type: boolean
+        default: false
   repository_dispatch:
     types:
       - deploy_ubsleepy
@@ -55,18 +60,26 @@ jobs:
       - name: Deploy ubsleepy
         if: github.event.action == 'deploy_ubsleepy' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'ubsleepy')
         run: |
+          EXTRA_ARGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            EXTRA_ARGS="--check"
+          fi
           cd iac-workspace
           ansible-playbook -i local_config/ansible/inventory.ini ansible/site.yml --tags ubsleepy \
             --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
-            --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}"
+            --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}" $EXTRA_ARGS
 
       - name: Deploy shake-web
         if: github.event.action == 'deploy_shakeweb' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'shakeweb')
         run: |
+          EXTRA_ARGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            EXTRA_ARGS="--check"
+          fi
           cd iac-workspace
           ansible-playbook -i local_config/ansible/inventory.ini ansible/site.yml --tags web \
             --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
-            --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}"
+            --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}" $EXTRA_ARGS
 
       - name: Cleanup Credentials
         if: always()

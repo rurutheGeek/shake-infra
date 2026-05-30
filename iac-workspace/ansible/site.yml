@@ -72,6 +72,9 @@
     - name: メインサーバーのUPS監視の構成
       ansible.builtin.include_role:
         name: ups_exporter
+        apply:
+          tags:
+            - ups_exporter
       vars:
         ups_exporter_repo_url: "https://github.com/rurutheGeek/ups-exporter.git"
         ups_exporter_install_dir: "/opt/ups-exporter"
@@ -82,6 +85,9 @@
     - name: メインサーバーのPostgreSQLの構成
       ansible.builtin.include_role:
         name: postgres
+        apply:
+          tags:
+            - postgres
       vars:
         pg_dir: /opt/postgres
       when: inventory_hostname in groups['home_node1']
@@ -90,6 +96,9 @@
     - name: メインサーバーのMinecraftの構成
       ansible.builtin.include_role:
         name: minecraft
+        apply:
+          tags:
+            - minecraft
       vars:
         mc_dir: /opt/minecraft
       when: inventory_hostname in groups['home_node1']
@@ -98,6 +107,9 @@
     - name: メインサーバーのWebアプリケーションの構成
       ansible.builtin.include_role:
         name: web
+        apply:
+          tags:
+            - web
       vars:
         app_owner: www-data
         app_group: www-data
@@ -110,6 +122,9 @@
     - name: メインサーバーのDiscord Bot (UBSLEEPY) の構成
       ansible.builtin.include_role:
         name: ubsleepy
+        apply:
+          tags:
+            - ubsleepy
       vars:
         ubsleepy_repo_url: "https://github.com/rurutheGeek/UBSLEEPY.git"
         ubsleepy_dir: "/opt/ubsleepy"
@@ -121,6 +136,9 @@
     - name: メインサーバーの自動バックアップの構成
       ansible.builtin.include_role:
         name: ubsleepy_backup
+        apply:
+          tags:
+            - ubsleepy_backup
       vars:
         ubsleepy_backup_r2_bucket: "ubsleepy-app-data"
         ubsleepy_backup_r2_endpoint: "43b2b53511f5cc6221885020999d30e6.r2.cloudflarestorage.com"
@@ -136,12 +154,18 @@
     - name: 監視サーバーへの監視スタックデプロイ
       ansible.builtin.include_role:
         name: monitoring
+        apply:
+          tags:
+            - monitoring
       when: inventory_hostname in groups['home_node2']
       tags: monitoring
 
     - name: 監視サーバーへのGitHub Runnerのセットアップ
       ansible.builtin.include_role:
         name: github_runner
+        apply:
+          tags:
+            - github_runner
       when:
         - inventory_hostname in groups['home_node2']
         - github_repo_url is defined
