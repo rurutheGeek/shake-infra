@@ -191,16 +191,24 @@ resource "github_actions_secret" "infra_discord_webhook" {
   value       = var.discord_webhook_url
 }
 
+locals {
+  ansible_ssh_key_path    = "${path.module}/../local_config/ansible/credentials/id_rsa"
+  ansible_vault_pass_path = "${path.module}/../local_config/ansible/credentials/.vault_pass"
+
+  ansible_ssh_key    = fileexists(local.ansible_ssh_key_path) ? file(local.ansible_ssh_key_path) : "dummy_ssh_key"
+  ansible_vault_pass = fileexists(local.ansible_vault_pass_path) ? file(local.ansible_vault_pass_path) : "dummy_vault_pass"
+}
+
 resource "github_actions_secret" "ansible_ssh_key" {
   repository  = data.github_repository.infra.name
   secret_name = "ANSIBLE_SSH_KEY"
-  value       = file("${path.module}/../local_config/ansible/credentials/id_rsa")
+  value       = local.ansible_ssh_key
 }
 
 resource "github_actions_secret" "ansible_vault_pass" {
   repository  = data.github_repository.infra.name
   secret_name = "ANSIBLE_VAULT_PASS"
-  value       = file("${path.module}/../local_config/ansible/credentials/.vault_pass")
+  value       = local.ansible_vault_pass
 }
 
 resource "github_actions_secret" "cloudflare_api_token" {
