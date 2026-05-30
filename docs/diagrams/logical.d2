@@ -1,0 +1,89 @@
+# shake 基盤 論理構成図 (D2)
+# 描画: d2 logical.d2 logical.svg
+
+direction: down
+
+client: "外部クライアント" {
+  shape: person
+}
+
+cf: "Cloudflare" {
+  style.fill: "#fff3e0"
+  dns: "DNS / Proxy"
+}
+
+p: "negitoroserver [proxy_node]" {
+  style.fill: "#e8eaf6"
+  sslh: "sslh :80/:443\nプロトコル判別"
+  stream: "Nginx stream :443\nproxy_protocol on"
+  nodeexp: "node_exporter :9100"
+}
+
+n1: "shakeserver [home_node1] — Docker" {
+  style.fill: "#e3f2fd"
+  nginx: "Nginx :443/:8443\nreal_ip復元"
+  quiz: "quiz_app :3000"
+  alexa: "alexa_skill :8000"
+  pg: "PostgreSQL 15 :5432" {
+    shape: cylinder
+  }
+  dbbk: "db-backup\npg_dump 日次"
+  mc: "Minecraft :25565"
+  mcbk: "minecraft-backup\nworld 日次 (rclone)"
+  bot: "Discord Bot (UBSLEEPY)"
+  ubbk: "ubsleepy-backup\nsave 日次 (systemd)"
+  upsx: "ups_exporter :9101"
+  cadv: "cAdvisor :8090"
+  nodeexp: "node_exporter :9100"
+}
+
+n2: "tarakoserver [home_node2] — Docker" {
+  style.fill: "#f3e5f5"
+  prom: "Prometheus :9090"
+  graf: "Grafana :3000"
+  loki: "Loki :3100"
+  am: "Alertmanager :9093"
+  bb: "blackbox_exporter"
+  promtail: "Promtail"
+  runner: "GitHub Actions\nSelf-hosted Runner"
+  cadv: "cAdvisor :8090"
+  nodeexp: "node_exporter :9100"
+}
+
+r2: "Cloudflare R2" {
+  shape: cylinder
+}
+discord: "Discord Webhook" {
+  shape: oval
+}
+
+client -> cf.dns -> p.sslh
+p.sslh -> p.stream: "TLS"
+p.sslh -> n1.nginx: "HTTP :80"
+p.sslh -> n1.mc: "MC :25565"
+p.stream -> n1.nginx: "TCP :443 (proxy_protocol)"
+
+n1.nginx -> n1.quiz: "/quiz"
+n1.nginx -> n1.alexa: "/alexa"
+n1.quiz -> n1.pg
+n1.bot -> n1.pg
+n1.pg -> n1.dbbk
+n1.mc -> n1.mcbk
+n1.bot -> n1.ubbk
+n1.dbbk -> r2: "db-backups/"
+n1.mcbk -> r2: "minecraft-backups/"
+n1.ubbk -> r2: "ubsleepy-save-backup/"
+
+n2.prom -> p.nodeexp: "node_exporter"
+n2.prom -> n1.nodeexp: "node_exporter"
+n2.prom -> n2.nodeexp: "node_exporter"
+n2.prom -> n1.upsx: "scrape"
+n2.prom -> n1.cadv: "scrape"
+n2.prom -> n2.bb: "scrape"
+n2.prom -> n2.cadv: "scrape"
+n2.bb -> n1.nginx: "http_2xx :80"
+n2.promtail -> n2.loki: "push logs"
+n2.graf -> n2.prom
+n2.graf -> n2.loki
+n2.prom -> n2.am: "alert"
+n2.am -> discord

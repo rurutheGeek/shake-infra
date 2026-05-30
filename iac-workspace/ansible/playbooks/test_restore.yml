@@ -10,8 +10,14 @@
 #     ansible/playbooks/test_restore.yml
 #
 # 前提条件:
-#   - R2 バケット (shakeserver-backup) に PostgreSQL バックアップが存在すること
-#   - home_node1 に docker, aws CLI (rclone 経由) が利用可能なこと
+#   - R2 バケット (shakeserver-backup) の db-backups/ プレフィックスに
+#     eeshugerman/postgres-backup-s3 がアップロードした .dump.gz が存在すること
+#   - home_node1 に docker が利用可能なこと
+#
+# バックアップ形式の前提:
+#   - postgres ロールの db-backup コンテナは S3_PREFIX="db-backups"、
+#     pg_dump のカスタム形式 (.dump) を gzip 圧縮してアップロードしている。
+#   - したがって本テストは pg_restore --format=custom を用いて復元する。
 
 - name: PostgreSQL バックアップ リストアテスト
   hosts: home_node1
@@ -21,6 +27,7 @@
     restore_container_name: restore_test_postgres
     restore_db_name: restore_test_db
     postgres_image: postgres:15-alpine
+    backup_prefix: "db-backups"
 
   tasks:
     - name: PostgreSQL リストアテストの実行と後処理
@@ -35,33 +42,41 @@
           ansible.builtin.command:
             cmd: >
               docker run --rm
-              -e AWS_ACCESS_KEY_ID="{{ r2_access_key_id }}"
-              -e AWS_SECRET_ACCESS_KEY="{{ r2_secret_access_key }}"
+              -e AWS_ACCESS_KEY_ID={{ r2_access_key_id }}
+              -e AWS_SECRET_ACCESS_KEY={{ r2_secret_access_key }}
               amazon/aws-cli s3 ls
-              s3://shakeserver-backup/postgres/
-              --endpoint-url "{{ r2_endpoint }}"
-              --no-sign-request
+              s3://shakeserver-backup/{{ backup_prefix }}/
+              --endpoint-url {{ r2_endpoint }}
             chdir: "{{ restore_test_dir }}"
           register: r2_listing
           changed_when: false
 
-        - name: 最新のバックアップファイル名を特定
+        - name: 最新のバックアップファイル名を特定 (.dump or .dump.gz)
           ansible.builtin.set_fact:
-            latest_backup: "{{ r2_listing.stdout_lines | select('search', '\\.sql') | list | last | split() | last }}"
+            latest_backup: "{{ r2_listing.stdout_lines | select('search', '\\.dump(\\.gz)?$') | list | last | split() | last }}"
 
         - name: バックアップファイルを R2 からダウンロード
           ansible.builtin.command:
             cmd: >
               docker run --rm
-              -e AWS_ACCESS_KEY_ID="{{ r2_access_key_id }}"
-              -e AWS_SECRET_ACCESS_KEY="{{ r2_secret_access_key }}"
-              -v "{{ restore_test_dir }}:/data"
+              -e AWS_ACCESS_KEY_ID={{ r2_access_key_id }}
+              -e AWS_SECRET_ACCESS_KEY={{ r2_secret_access_key }}
+              -v {{ restore_test_dir }}:/data
               amazon/aws-cli s3 cp
-              s3://shakeserver-backup/postgres/{{ latest_backup }}
+              s3://shakeserver-backup/{{ backup_prefix }}/{{ latest_backup }}
               /data/{{ latest_backup }}
-              --endpoint-url "{{ r2_endpoint }}"
-              --no-sign-request
+              --endpoint-url {{ r2_endpoint }}
           changed_when: true
+
+        - name: gzip 圧縮バックアップを展開
+          ansible.builtin.command:
+            cmd: gunzip {{ restore_test_dir }}/{{ latest_backup }}
+          when: latest_backup.endswith('.gz')
+          changed_when: true
+
+        - name: 展開後のファイル名を確定
+          ansible.builtin.set_fact:
+            backup_file: "{{ latest_backup | regex_replace('\\.gz$', '') }}"
 
         - name: リストアテスト用 PostgreSQL コンテナの起動
           community.docker.docker_container:
@@ -71,18 +86,25 @@
             env:
               POSTGRES_PASSWORD: "restore_test_pass" # pragma: allowlist secret
               POSTGRES_DB: "{{ restore_db_name }}"
+            volumes:
+              - "{{ restore_test_dir }}:/restore:ro"
             restart_policy: "no"
 
-        - name: コンテナ起動待機
-          ansible.builtin.wait_for:
-            timeout: 15
+        - name: コンテナの healthcheck 待機
+          ansible.builtin.command:
+            cmd: docker exec {{ restore_container_name }} pg_isready -U postgres
+          register: pg_ready
+          retries: 15
+          delay: 2
+          until: pg_ready.rc == 0
+          changed_when: false
 
-        - name: バックアップをテストコンテナにリストア
+        - name: バックアップをテストコンテナにリストア (pg_restore カスタム形式)
           ansible.builtin.command:
             cmd: >
-              docker exec -i {{ restore_container_name }}
-              psql -U postgres -d {{ restore_db_name }}
-            stdin: "{{ lookup('file', restore_test_dir + '/' + latest_backup) }}"
+              docker exec {{ restore_container_name }}
+              pg_restore -U postgres -d {{ restore_db_name }} --no-owner --no-privileges
+              /restore/{{ backup_file }}
           register: restore_result
           changed_when: true
           failed_when: restore_result.rc != 0
