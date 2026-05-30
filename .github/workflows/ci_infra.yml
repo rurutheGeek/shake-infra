@@ -133,7 +133,7 @@ jobs:
       - name: Run Trivy (IaC config scan)
         # aquasecurity/trivy-action v0.36.0 を使用。
         # 2026年3月のタグ改ざん事案に伴い、コミットSHAで固定。
-        uses: aquasecurity/trivy-action@ed142fd07b38d3550b074464d607e058d9980d27
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           scan-type: config
           scan-ref: iac-workspace/ansible/files/

@@ -4,6 +4,8 @@
 # Ansible temporary runtime directories
 .ansible/
 **/ .ansible/
+logs/
+**/logs/
 
 # Ansible retry files
 *.retry
