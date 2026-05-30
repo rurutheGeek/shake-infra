@@ -248,15 +248,15 @@ resource "github_actions_secret" "ubsleepy_dispatch_token" {
   value       = var.infra_repo_dispatch_token
 }
 
-# 必要に応じて他のアプリリポジトリ (shakeweb等) もコメントアウトを外して追加可能
-# data "github_repository" "shakeweb" {
-#   name = "shakeweb"
-# }
-# resource "github_actions_secret" "shakeweb_dispatch_token" {
-#   repository      = data.github_repository.shakeweb.name
-#   secret_name     = "INFRA_REPO_DISPATCH_TOKEN"
-#   plaintext_value = var.infra_repo_dispatch_token
-# }
+data "github_repository" "shakeweb" {
+  name = "shake-web"
+}
+
+resource "github_actions_secret" "shakeweb_dispatch_token" {
+  repository  = data.github_repository.shakeweb.name
+  secret_name = "INFRA_REPO_DISPATCH_TOKEN"
+  value       = var.infra_repo_dispatch_token
+}
 
 # ==========================================
 # Cloudflare Workers (Failover / Maintenance)
