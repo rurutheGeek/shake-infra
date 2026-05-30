@@ -35,12 +35,16 @@ jobs:
         env:
           ANSIBLE_SSH_KEY: ${{ secrets.ANSIBLE_SSH_KEY }}
           ANSIBLE_VAULT_PASS: ${{ secrets.ANSIBLE_VAULT_PASS }}
+          ANSIBLE_VARS: ${{ secrets.ANSIBLE_VARS }}
         run: |
           echo "$ANSIBLE_SSH_KEY" > "${{ env.ANSIBLE_PRIVATE_KEY_FILE }}"
           chmod 600 "${{ env.ANSIBLE_PRIVATE_KEY_FILE }}"
           echo "$ANSIBLE_VAULT_PASS" > "${{ env.ANSIBLE_VAULT_PASS_FILE }}"
           chmod 600 "${{ env.ANSIBLE_VAULT_PASS_FILE }}"
-          mkdir -p iac-workspace/local_config/ansible
+          mkdir -p iac-workspace/local_config/ansible/credentials
+          echo "$ANSIBLE_VARS" > iac-workspace/local_config/ansible/vars.yml
+          cp iac-workspace/local_config/ansible/credentials/vault.yml.enc iac-workspace/local_config/ansible/credentials/vault.yml
+          cp iac-workspace/local_config/ansible/credentials/key.pem.enc iac-workspace/local_config/ansible/credentials/key.pem
           cat << 'EOF' > iac-workspace/local_config/ansible/inventory.ini
           [proxy_node]
           negitoroserver ansible_host=100.92.253.28 ansible_user=ansible_admin
@@ -66,6 +70,8 @@ jobs:
           fi
           cd iac-workspace
           ansible-playbook -i local_config/ansible/inventory.ini ansible/site.yml --tags ubsleepy \
+            -e @local_config/ansible/vars.yml \
+            -e @local_config/ansible/credentials/vault.yml \
             --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
             --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}" $EXTRA_ARGS
 
@@ -78,6 +84,8 @@ jobs:
           fi
           cd iac-workspace
           ansible-playbook -i local_config/ansible/inventory.ini ansible/site.yml --tags web \
+            -e @local_config/ansible/vars.yml \
+            -e @local_config/ansible/credentials/vault.yml \
             --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
             --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}" $EXTRA_ARGS
 

@@ -211,6 +211,12 @@ resource "github_actions_secret" "ansible_vault_pass" {
   value       = local.ansible_vault_pass
 }
 
+resource "github_actions_secret" "ansible_vars" {
+  repository  = data.github_repository.infra.name
+  secret_name = "ANSIBLE_VARS"                                                                                                                         # pragma: allowlist secret
+  value       = fileexists("${path.module}/../local_config/ansible/vars.yml") ? file("${path.module}/../local_config/ansible/vars.yml") : "dummy_vars" # pragma: allowlist secret
+}
+
 resource "github_actions_secret" "cloudflare_api_token" {
   repository  = data.github_repository.infra.name
   secret_name = "CLOUDFLARE_API_TOKEN"
