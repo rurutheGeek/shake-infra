@@ -56,6 +56,10 @@
   become: true
   become_user: "{{ app_owner }}"
 
+- name: DEBUG - SSH Check Result
+  ansible.builtin.debug:
+    var: web_github_ssh_check
+
 - name: GitHubへのデプロイキー登録確認（未登録時はエラーで公開鍵を表示）
   ansible.builtin.fail:
     msg: |
