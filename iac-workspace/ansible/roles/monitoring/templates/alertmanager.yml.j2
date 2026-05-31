@@ -1,0 +1,28 @@
+global:
+  resolve_timeout: 1m
+
+route:
+  receiver: 'discord'          # 既定: マッチしないアラートは Discord へ通知
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  routes:
+    # ProxyDown はフェイルオーバー Webhook（メンテ自動切替）へ送る。
+    # continue: true で後続ルートも評価し、Discord にも通知する。
+    - matchers:
+        - 'alertname = "ProxyDown"'
+      receiver: 'failover_webhook'
+      continue: true
+    - matchers:
+        - 'alertname = "ProxyDown"'
+      receiver: 'discord'
+
+receivers:
+  - name: 'failover_webhook'
+    webhook_configs:
+      - url: 'http://127.0.0.1:9000/webhook'
+  - name: 'discord'
+    discord_configs:
+      - webhook_url: '{{ discord_webhook_url }}'
+        send_resolved: true
