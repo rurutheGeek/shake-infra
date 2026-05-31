@@ -39,9 +39,15 @@
   loop:
     - prometheus.yml
     - prometheus_rules.yml
-    - alertmanager.yml
     - monitoring-compose.yml
     - failover_webhook.py
+  notify: Restart monitoring containers
+
+- name: Alertmanager設定の配置（Jinja2テンプレート / Discord Webhook を注入）
+  ansible.builtin.template:
+    src: alertmanager.yml.j2
+    dest: /opt/monitoring/alertmanager.yml
+    mode: "0644"
   notify: Restart monitoring containers
 
 - name: Promtail設定ファイルの配置（Jinja2テンプレート）
