@@ -54,6 +54,9 @@
 ### IaC 設計・構成定義
 - [iac-workspace/README.md](iac-workspace/README.md) — ディレクトリツリー全体像、Ansible Roles 一覧、Terraform 定義、統合管理スクリプト（run_playbook.sh）のメニュー詳細、セキュリティガイドライン。
 
+### リファレンス
+- [docs/GitHubActionsワークフローリファレンス.md](docs/GitHubActionsワークフローリファレンス.md) — CI/CD ワークフロー（日本語表示名・トリガー・ジョブ構成・利用シークレット・Discord 通知条件）の一覧。
+
 ---
 
 ## リポジトリ構成
