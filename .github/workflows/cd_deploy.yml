@@ -1,17 +1,17 @@
-name: Auto Deploy from Apps
+name: アプリからの自動デプロイ
 
 on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Target application to deploy'
+        description: 'デプロイ対象のアプリ'
         required: true
         type: choice
         options:
           - ubsleepy
           - shakeweb
       dry_run:
-        description: 'Dry Run (Simulation only)'
+        description: 'ドライラン（シミュレーションのみ）'
         required: false
         type: boolean
         default: false
@@ -22,16 +22,17 @@ on:
 
 jobs:
   deploy:
+    name: デプロイ実行
     runs-on: self-hosted
     env:
       ANSIBLE_HOST_KEY_CHECKING: "False"
       ANSIBLE_PRIVATE_KEY_FILE: "${{ github.workspace }}/.ansible_pkey"
       ANSIBLE_VAULT_PASS_FILE: "${{ github.workspace }}/.ansible_vault_pass"
     steps:
-      - name: Checkout Repo
+      - name: リポジトリのチェックアウト
         uses: actions/checkout@v3
 
-      - name: Setup Ansible Credentials
+      - name: Ansible 認証情報のセットアップ
         env:
           ANSIBLE_SSH_KEY: ${{ secrets.ANSIBLE_SSH_KEY }}
           ANSIBLE_VAULT_PASS: ${{ secrets.ANSIBLE_VAULT_PASS }}
@@ -56,12 +57,12 @@ jobs:
           tarakoserver ansible_host=100.123.163.119 ansible_user=ansible_admin
           EOF
 
-      - name: Install Ansible Collections
+      - name: Ansible コレクションのインストール
         run: |
           cd iac-workspace/ansible
           ansible-galaxy collection install -r requirements.yml --force
 
-      - name: Deploy ubsleepy
+      - name: ubsleepy のデプロイ
         if: github.event.action == 'deploy_ubsleepy' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'ubsleepy')
         run: |
           EXTRA_ARGS=""
@@ -75,7 +76,7 @@ jobs:
             --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
             --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}" $EXTRA_ARGS
 
-      - name: Deploy shake-web
+      - name: shake-web のデプロイ
         if: github.event.action == 'deploy_shakeweb' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'shakeweb')
         run: |
           EXTRA_ARGS=""
@@ -92,7 +93,7 @@ jobs:
       # デプロイ"成功"＝アプリが実際に動く、ではない。実ユーザー経路で
       # DB連携エンドポイントを叩き、200でなければデプロイを失敗扱いにする
       # （Cloudflare→proxy→nginx→quiz→PostgreSQL まで含めた疎通検証）。
-      - name: Smoke test - shake-web (DB連携エンドポイント)
+      - name: スモークテスト（shake-web / DB連携エンドポイント）
         if: github.event.action == 'deploy_shakeweb' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'shakeweb')
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
@@ -115,13 +116,13 @@ jobs:
           curl -fsS -o /dev/null "$BASE/" && echo "root page OK"
           echo "Smoke test PASSED"
 
-      - name: Cleanup Credentials
+      - name: 認証情報のクリーンアップ
         if: always()
         run: |
           rm -f "${{ env.ANSIBLE_PRIVATE_KEY_FILE }}"
           rm -f "${{ env.ANSIBLE_VAULT_PASS_FILE }}"
 
-      - name: Discord Notification (Success)
+      - name: Discord 通知（成功時）
         if: success()
         run: |
           TARGET="${{ github.event.action }}"
@@ -137,7 +138,7 @@ jobs:
             echo "DISCORD_WEBHOOK_URL is not set. Skipping notification."
           fi
 
-      - name: Discord Notification (Failure)
+      - name: Discord 通知（失敗時）
         if: failure()
         run: |
           TARGET="${{ github.event.action }}"
