@@ -30,7 +30,7 @@ jobs:
       ANSIBLE_VAULT_PASS_FILE: "${{ github.workspace }}/.ansible_vault_pass"
     steps:
       - name: リポジトリのチェックアウト
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Ansible 認証情報のセットアップ
         env:
