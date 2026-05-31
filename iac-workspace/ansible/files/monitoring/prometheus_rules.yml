@@ -39,6 +39,26 @@ groups:
           summary: "High disk usage on {{ $labels.instance }}"
           description: "Disk usage on / is above 85% on {{ $labels.instance }}."
 
+  - name: web.rules
+    rules:
+      - alert: WebDbEndpointDown
+        expr: probe_success{job="blackbox_https", instance=~".*/quiz/api/bsquiz/pokedex"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "shake-web のDB連携エンドポイントが不通"
+          description: "{{ $labels.instance }} が2分以上 2xx を返していません。DB認証ズレ・コンテナ停止等を疑ってください。"
+
+      - alert: WebSiteDown
+        expr: probe_success{job="blackbox_https", instance="https://ruruthegeek.dpdns.org/"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "shake-web トップページが不通"
+          description: "公開URLが2分以上 2xx を返していません。"
+
   - name: runner.rules
     rules:
       - alert: GithubRunnerOffline
