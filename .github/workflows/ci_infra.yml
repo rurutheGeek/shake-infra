@@ -47,6 +47,24 @@ jobs:
         working-directory: iac-workspace
         run: ansible-lint ansible/site.yml
 
+  local-integration-tests:
+    name: Local Integration Tests (Docker)
+    # 使い捨てコンテナ/モックでロール・監視・フェイルオーバーを検証（本番非接続）。
+    # ubuntu-latest は docker / docker compose 利用可。
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run local test suite
+        working-directory: iac-workspace/tests
+        run: ./run.sh
+
   terraform-ci:
     name: Terraform Format & Validate
     runs-on: ubuntu-latest
