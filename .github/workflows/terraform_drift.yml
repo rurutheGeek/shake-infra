@@ -14,7 +14,7 @@ jobs:
         working-directory: iac-workspace/terraform
     steps:
       - name: リポジトリのチェックアウト
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Terraform のセットアップ
         uses: hashicorp/setup-terraform@v3
