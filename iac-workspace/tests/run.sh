@@ -1,10 +1,12 @@
 #!/bin/bash
-# ローカル統合テスト実行（本番非接続）。venv を作って pytest を回すだけ。
+# ローカル統合テスト実行（本番非接続）。venv はリポジトリ外に作る
+# （pre-commit の ansible-lint がツリー内 venv を走査して誤検知するのを防ぐ）。
 set -euo pipefail
 cd "$(dirname "$0")"
-if [ ! -d .venv ]; then
-  python3 -m venv .venv
-  ./.venv/bin/pip -q install --upgrade pip
-  ./.venv/bin/pip -q install pytest
+VENV="${SHAKE_TEST_VENV:-$HOME/.cache/shake-infra-tests/venv}"
+if [ ! -x "$VENV/bin/pytest" ]; then
+  python3 -m venv "$VENV"
+  "$VENV/bin/pip" -q install --upgrade pip
+  "$VENV/bin/pip" -q install pytest
 fi
-exec ./.venv/bin/pytest -v "$@"
+exec "$VENV/bin/pytest" -v "$@"

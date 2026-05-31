@@ -45,6 +45,9 @@ jobs:
       - name: Run Ansible Lint
         # .ansible-lint の設定を読み込ませるため上の階層から実行
         working-directory: iac-workspace
+        # molecule の converge.yml が role を解決できるようロールパスを付与
+        env:
+          ANSIBLE_ROLES_PATH: ansible/roles
         run: ansible-lint ansible/site.yml
 
   local-integration-tests:
@@ -157,3 +160,19 @@ jobs:
           scan-ref: iac-workspace/ansible/files/
           severity: HIGH,CRITICAL
           exit-code: '1'
+
+  notify-failure:
+    name: Discord Notification (Failure)
+    # いずれかのジョブが失敗したら Discord に通知する。
+    needs: [ansible-ci, local-integration-tests, terraform-ci, terraform-plan, trivy-scan]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Discord on CI failure
+        run: |
+          if [ -z "${{ secrets.DISCORD_WEBHOOK_URL }}" ]; then
+            echo "DISCORD_WEBHOOK_URL not set; skipping."; exit 0
+          fi
+          curl -s -H "Content-Type: application/json" -X POST \
+            -d '{"content": "[CI FAILED] インフラCIが失敗しました\nWorkflow: `CI for Infrastructure`\nBranch: `${{ github.ref_name }}`\nCommit: `${{ github.sha }}`\nTrigger: `${{ github.event_name }}`\n詳細: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
+            "${{ secrets.DISCORD_WEBHOOK_URL }}"

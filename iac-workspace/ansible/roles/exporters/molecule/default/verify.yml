@@ -1,0 +1,21 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: node-exporter サービスが active であること
+      ansible.builtin.systemd:
+        name: prometheus-node-exporter
+      register: ne
+
+    - name: ActiveState を検証
+      ansible.builtin.assert:
+        that:
+          - ne.status.ActiveState == "active"
+        fail_msg: "prometheus-node-exporter が起動していません: {{ ne.status.ActiveState }}"
+
+    - name: メトリクス用 9100 ポートが待ち受けていること
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 9100
+        timeout: 15
