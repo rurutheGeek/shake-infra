@@ -1,0 +1,26 @@
+---
+# exporters ロールの Molecule 単体テスト（本番非接続・使い捨てコンテナ）。
+# docker/ufw タスクは「docker 未インストール時に自動スキップ」されるため、
+# コンテナ内では node-exporter 導入 + systemd 起動のみを収束/冪等検証できる。
+dependency:
+  name: galaxy
+driver:
+  name: docker
+platforms:
+  - name: exporters-instance
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    pre_build_image: true
+    privileged: true
+    cgroupns_mode: host
+    # 空コマンドにしてイメージ既定の systemd を PID1 で起動させる
+    # （省略すると molecule がキープアライブの sleep を入れ systemd が動かない）
+    command: ""
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+provisioner:
+  name: ansible
+  env:
+    # ロール本体(roles/exporters)を解決できるよう親 roles/ をパスに追加
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/.."
+verifier:
+  name: ansible
