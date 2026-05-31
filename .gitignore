@@ -55,3 +55,8 @@ tmp/
 # Ignore work logs and outputs
 output/
 .claude/
+
+# Molecule のロール単体テストが生成する一時ディレクトリ
+.molecule/
+# テスト用 venv はリポジトリ外($HOME/.cache)に作る運用だが、保険でローカル生成も無視
+iac-workspace/tests/.venv/
