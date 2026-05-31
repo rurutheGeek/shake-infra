@@ -94,7 +94,9 @@ jobs:
   terraform-plan:
     name: Terraform Plan（PRのみ）
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    # Dependabot の PR には GitHub がシークレットを渡さない仕様のため、
+    # R2バックエンド認証が必須のこのジョブはスキップする（誤検知の失敗を防ぐ）。
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     permissions:
       pull-requests: write
     defaults:
