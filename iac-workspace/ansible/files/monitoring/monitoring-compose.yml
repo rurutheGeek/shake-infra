@@ -29,6 +29,8 @@ services:
     image: prom/blackbox-exporter:latest
     container_name: blackbox_exporter
     network_mode: "host"
+    volumes:
+      - ./blackbox.yml:/etc/blackbox_exporter/config.yml:ro
     restart: unless-stopped
 
   loki:

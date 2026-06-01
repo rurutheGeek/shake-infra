@@ -39,6 +39,7 @@
   loop:
     - prometheus.yml
     - prometheus_rules.yml
+    - blackbox.yml
     - monitoring-compose.yml
     - failover_webhook.py
   notify: Restart monitoring containers

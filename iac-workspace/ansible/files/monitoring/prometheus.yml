@@ -21,7 +21,7 @@ scrape_configs:
   - job_name: 'blackbox'
     metrics_path: /probe
     params:
-      module: [http_2xx]
+      module: [http_proxy_reachable]   # 80→301 を成功とみなす（:443へは追従しない）
     static_configs:
       - targets:
           - http://100.116.167.59:80
