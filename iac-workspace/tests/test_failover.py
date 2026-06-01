@@ -60,7 +60,7 @@ def test_proxydown_firing_enables_maintenance(server):
     _post(port, {"alerts": [{"status": "firing", "labels": {"alertname": "ProxyDown"}}]})
     assert len(calls) == 1
     assert calls[0][-1] == "on"
-    assert calls[0][0].endswith("toggle_maintenance.sh")
+    assert calls[0][0].endswith("maintenance_toggle.sh")
 
 
 def test_proxydown_resolved_disables_maintenance(server):
