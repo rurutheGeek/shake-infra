@@ -17,7 +17,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 if alert.get('status') == 'firing' and alert['labels'].get('alertname') == 'ProxyDown':
                     print("Received ProxyDown firing alert. Triggering maintenance mode ON...")
                     # toggle_maintenance.sh を on で実行
-                    script_path = '/home/ruru/gemini_project/infra/iac-workspace/toggle_maintenance.sh'
+                    script_path = '/opt/monitoring/maintenance_toggle.sh'
                     
                     if os.path.exists(script_path):
                         subprocess.run([script_path, 'on'], check=True)
@@ -34,7 +34,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 elif alert.get('status') == 'resolved' and alert['labels'].get('alertname') == 'ProxyDown':
                     print("Received ProxyDown resolved alert. Triggering maintenance mode OFF...")
                     # toggle_maintenance.sh を off で実行
-                    script_path = '/home/ruru/gemini_project/infra/iac-workspace/toggle_maintenance.sh'
+                    script_path = '/opt/monitoring/maintenance_toggle.sh'
                     
                     if os.path.exists(script_path):
                         subprocess.run([script_path, 'off'], check=True)

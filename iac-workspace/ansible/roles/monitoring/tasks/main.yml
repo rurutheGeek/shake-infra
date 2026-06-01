@@ -66,6 +66,20 @@
     state: present
     wait: true
 
+- name: メンテ切替スクリプト（Cloudflare API 方式）の配置
+  ansible.builtin.copy:
+    src: files/monitoring/maintenance_toggle.sh
+    dest: /opt/monitoring/maintenance_toggle.sh
+    mode: "0755"
+
+- name: メンテ切替用の認証 env（Vault から注入）の配置
+  ansible.builtin.template:
+    src: maintenance.env.j2
+    dest: /opt/monitoring/maintenance.env
+    owner: ruru
+    group: ruru
+    mode: "0600"
+
 - name: Failover Webhook用サービスファイルの配置
   ansible.builtin.template:
     src: failover-webhook.service.j2
