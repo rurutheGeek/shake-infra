@@ -1,0 +1,15 @@
+modules:
+  # 既定の HTTP プローブ（2xx 期待・リダイレクト追従）。blackbox_https ジョブ用。
+  http_2xx:
+    prober: http
+    timeout: 5s
+
+  # 到達性確認用。origin の :80 は HTTPS へ 301 リダイレクトするため、
+  # リダイレクトを追従せず 3xx も成功とみなす。
+  # （追従すると proxy_protocol 必須の :443 に生TLSで当たり reset → 誤検知になる）
+  http_proxy_reachable:
+    prober: http
+    timeout: 5s
+    http:
+      valid_status_codes: [200, 301, 302, 307, 308]
+      follow_redirects: false
