@@ -9,6 +9,11 @@ db_name: sleepy_pkdb
 db_port: 5432
 db_host: YOUR_DATABASE_HOST_IP
 
+# shake_web サイト用 DB（名前は公開変数、パスワードは vault.yml）
+shakeweb_db_name: shakeweb
+shakeweb_db_user_reader: shakeweb_reader
+shakeweb_db_user_editor: shakeweb_editor
+
 mc_resource_pack_url: YOUR_MINECRAFT_RESOURCE_PACK_URL
 mc_resource_pack_hash: YOUR_MINECRAFT_RESOURCE_PACK_HASH
 cf_account_id: YOUR_CLOUDFLARE_ACCOUNT_ID
