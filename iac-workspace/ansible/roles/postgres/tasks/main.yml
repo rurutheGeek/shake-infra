@@ -95,7 +95,7 @@
       GRANT CONNECT ON DATABASE {{ shakeweb_db_name }} TO "{{ shakeweb_db_user_reader }}";
       GRANT CONNECT ON DATABASE {{ shakeweb_db_name }} TO "{{ shakeweb_db_user_editor }}";
       GRANT USAGE ON SCHEMA public TO "{{ shakeweb_db_user_reader }}";
-      GRANT USAGE ON SCHEMA public TO "{{ shakeweb_db_user_editor }}";
+      GRANT USAGE, CREATE ON SCHEMA public TO "{{ shakeweb_db_user_editor }}";
       GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{{ shakeweb_db_user_reader }}";
       GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{{ shakeweb_db_user_editor }}";
       GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO "{{ shakeweb_db_user_reader }}";
