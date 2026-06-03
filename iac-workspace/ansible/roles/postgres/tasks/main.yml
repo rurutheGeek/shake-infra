@@ -66,3 +66,52 @@
       ALTER USER "{{ db_user_editor }}" WITH PASSWORD '{{ db_password_editor | replace("'", "''") }}';
   changed_when: false
   no_log: true
+
+# --- shakeweb DB の冪等セットアップ ---
+# init-db/02_setup_shakeweb.sh はボリューム初回作成時にしか動かないため、
+# 既存の稼働中ボリュームには以下の Ansible タスクで冪等に適用する。
+- name: shakeweb DB の作成（存在しない場合のみ）
+  ansible.builtin.command:
+    cmd: docker exec -i shake_postgres psql -U {{ postgres_user }} -v ON_ERROR_STOP=1
+    stdin: |
+      SELECT 'CREATE DATABASE {{ shakeweb_db_name }}'
+      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ shakeweb_db_name }}')\gexec
+  changed_when: false
+
+- name: shakeweb ユーザーの作成と権限付与（存在しない場合のみ）
+  ansible.builtin.command:
+    cmd: docker exec -i shake_postgres psql -U {{ postgres_user }} -d {{ shakeweb_db_name }} -v ON_ERROR_STOP=1
+    stdin: |
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{ shakeweb_db_user_reader }}') THEN
+          CREATE USER "{{ shakeweb_db_user_reader }}" WITH PASSWORD '{{ shakeweb_db_password_reader | replace("'", "''") }}';
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{ shakeweb_db_user_editor }}') THEN
+          CREATE USER "{{ shakeweb_db_user_editor }}" WITH PASSWORD '{{ shakeweb_db_password_editor | replace("'", "''") }}';
+        END IF;
+      END
+      $$;
+      GRANT CONNECT ON DATABASE {{ shakeweb_db_name }} TO "{{ shakeweb_db_user_reader }}";
+      GRANT CONNECT ON DATABASE {{ shakeweb_db_name }} TO "{{ shakeweb_db_user_editor }}";
+      GRANT USAGE ON SCHEMA public TO "{{ shakeweb_db_user_reader }}";
+      GRANT USAGE ON SCHEMA public TO "{{ shakeweb_db_user_editor }}";
+      GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{{ shakeweb_db_user_reader }}";
+      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{{ shakeweb_db_user_editor }}";
+      GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO "{{ shakeweb_db_user_reader }}";
+      GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "{{ shakeweb_db_user_editor }}";
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO "{{ shakeweb_db_user_reader }}";
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON SEQUENCES TO "{{ shakeweb_db_user_reader }}";
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{{ shakeweb_db_user_editor }}";
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO "{{ shakeweb_db_user_editor }}";
+  changed_when: false
+  no_log: true
+
+- name: shakeweb ユーザーのパスワードを Vault 値へ同期（冪等収束）
+  ansible.builtin.command:
+    cmd: docker exec -i shake_postgres psql -U {{ postgres_user }} -d {{ shakeweb_db_name }} -v ON_ERROR_STOP=1
+    stdin: |
+      ALTER USER "{{ shakeweb_db_user_reader }}" WITH PASSWORD '{{ shakeweb_db_password_reader | replace("'", "''") }}';
+      ALTER USER "{{ shakeweb_db_user_editor }}" WITH PASSWORD '{{ shakeweb_db_password_editor | replace("'", "''") }}';
+  changed_when: false
+  no_log: true
