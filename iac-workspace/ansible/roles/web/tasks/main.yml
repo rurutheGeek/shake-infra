@@ -154,6 +154,7 @@
   ansible.posix.synchronize:
     src: "{{ app_dir }}/src_tmp/{{ item }}"
     dest: "{{ app_dir }}/"
+    delete: true   # 旧ファイルの残骸を除去（残るとnext buildのlintで失敗するため）
     rsync_opts:
       - "--exclude=.git"
   delegate_to: "{{ inventory_hostname }}"
