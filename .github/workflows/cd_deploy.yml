@@ -10,6 +10,7 @@ on:
         options:
           - ubsleepy
           - shakeweb
+          - pkhack
           - ayahuya
       dry_run:
         description: 'ドライラン（シミュレーションのみ）'
@@ -20,6 +21,7 @@ on:
     types:
       - deploy_ubsleepy
       - deploy_shakeweb
+      - deploy_pkhack
       - deploy_ayahuya
 
 jobs:
@@ -118,6 +120,8 @@ jobs:
           curl -fsS -o /dev/null "$BASE/" && echo "root page OK"
           echo "Smoke test PASSED"
 
+      - name: pkhack のデプロイ
+        if: github.event.action == 'deploy_pkhack' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pkhack')
       - name: ayahuya のデプロイ
         if: github.event.action == 'deploy_ayahuya' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'ayahuya')
         run: |
@@ -132,6 +136,10 @@ jobs:
             --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
             --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}" $EXTRA_ARGS
 
+      # pkhack も DB連携エンドポイント（/quiz/api/bsquiz/pokedex）で疎通を確認する。
+      # DNS未適用・pkhack DB未作成・ssl設定不足時はここで落ちる。
+      - name: スモークテスト（pkhack / DB連携エンドポイント）
+        if: github.event.action == 'deploy_pkhack' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pkhack')
       # ayahuya は純静的だが、Cloudflare→proxy→nginx→静的配信 までの疎通を
       # 大辞典トップ(/docs/words/)で検証する。DNS未適用・証明書未カバー時はここで落ちる。
       - name: スモークテスト（ayahuya / 大辞典トップ）
@@ -141,6 +149,12 @@ jobs:
             echo "dry-run のためスモークテストをスキップ"; exit 0
           fi
           set -euo pipefail
+          BASE="https://pkhack.ruruthegeek.dpdns.org"
+          echo "Smoke test against $BASE ..."
+          ok=0
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/quiz/api/bsquiz/pokedex" || echo 000)
+            echo "  attempt $i: /quiz/api/bsquiz/pokedex -> $code"
           BASE="https://ayahuya.ruruthegeek.dpdns.org"
           echo "Smoke test against $BASE ..."
           ok=0
@@ -151,6 +165,10 @@ jobs:
             sleep 5
           done
           if [ "$ok" != "1" ]; then
+            echo "::error::Smoke test FAILED: pkhack のDB連携エンドポイントが200を返しません"
+            exit 1
+          fi
+          curl -fsS -o /dev/null "$BASE/quiz/" && echo "quiz hub OK"
             echo "::error::Smoke test FAILED: ayahuya 大辞典トップが200を返しません（DNS/証明書/配信を疑う）"
             exit 1
           fi
