@@ -1,11 +1,20 @@
-feat(postgres/web): pkhack 専用DBのプロビジョニングと env 配線
+feat(web): pkhack サブドメインの配信を追加
 
-shake-web 3分割(Phase B)の前提。ポケモンクイズのランキング(quiz_rankings)を
-shakeweb DB から pkhack 専用DBへ分離するためのインフラ側対応。
+rurutheGeek/pkhack（ポケモンクイズ Next.js）を pkhack.ruruthegeek.dpdns.org で
+配信する。shake-web 3分割 Phase B の配信インフラ。
 
-- postgres ロール: pkhack DB + pkhack_reader/editor を冪等作成（shakeweb と同パターン）。
-  Vault に pkhack_db_password_reader/editor を追加するまでは when ガードでスキップ
-  （既存 postgres デプロイを壊さない）。非機密の名前は role 内デフォルト。
-- web env.j2 / docker-compose(quiz_app): PKHACK_DB_* を配線（パスワード未設定時は空）。
+- web ロール: pkhack repo を SHA比較で git pull（private のため deploy key）→ html/quiz を
+  rsync。pkhack_app コンテナを再構築。nginx テンプレ配置・再起動条件に追加。
+- nginx: pkhack.conf.template（/quiz→pkhack_app:3000 へ WebSocket 対応プロキシ、
+  /quiz/index.html と /assets は静的、ルートは /quiz/ へ）。
+- docker-compose: pkhack_app サービス（build ./pkhack/quiz、DB_*＋PKHACK_DB_* env、
+  ホストポート非公開）＋ nginx に ./pkhack/html マウント＋depends_on。
+- terraform: pkhack A レコード、pkhack repo の INFRA_REPO_DISPATCH_TOKEN と
+  read-only deploy key（web_deploy_public_key 変数、未設定時 count=0）。
+- site.yml: web_pkhack_repo_url。
+- cd_deploy: deploy_pkhack イベント＋デプロイ＋スモークテスト（/quiz/api/bsquiz/pokedex）。
 
-ansible-lint(production) パス。
+注: CF SSLモード ssl=full は PR#6（ayahuya）が定義。先に #6 をマージするか、
+同等の zone 設定が必要。
+
+ansible-lint(production) / terraform fmt・validate パス。
