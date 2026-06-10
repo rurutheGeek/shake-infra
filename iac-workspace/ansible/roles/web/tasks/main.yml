@@ -191,6 +191,7 @@
   loop:
     - files/web/conf.d/ssl.conf.template
     - files/web/conf.d/redirect.conf.template
+    - files/web/conf.d/shake.conf.template
   register: web_templates_copy
 
 - name: Web用 .env の生成 (Jinja2テンプレート)
