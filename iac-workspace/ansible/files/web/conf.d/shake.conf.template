@@ -1,0 +1,75 @@
+# =============================================================================
+#  shake サブドメイン（Shake ブランド: Issues / Shaketter / ToBa / Ikura）
+# -----------------------------------------------------------------------------
+#  shake-web の静的フロント（html/{issues,shaketter,toba,ikura} 等）と Next.js API
+#  （quiz_app）を配信する。外向き API 名前空間は /api/*（実体は quiz_app の /quiz/api/*）。
+#  後方互換のため /quiz/* も引き続き有効。
+#  TLS は CF↔オリジン ssl=full（apex 証明書流用・ホスト名検証なし）前提。
+#  ブラウザ↔CF は Universal SSL が *.ruruthegeek.dpdns.org を自動カバー。
+#
+#  TODO(follow-up): 共有URL OGP（/shaketter/p/<id>・/toba/e/<id> → og エンドポイント）。
+#  動的 proxy_pass のため resolver 127.0.0.11 が必要で、実環境での疎通確認とセットで追加する。
+# =============================================================================
+server {
+    listen 443 ssl proxy_protocol;
+    listen 8443 ssl;
+    server_name shake.ruruthegeek.dpdns.org;
+
+    set_real_ip_from 100.92.253.28;
+    real_ip_header proxy_protocol;
+
+    ssl_certificate     /etc/nginx/certs/cert.pem;
+    ssl_certificate_key /etc/nginx/certs/key.pem;
+
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # 外向き API 名前空間 /api/* → Next.js 実体 /quiz/api/*
+    location /api/ {
+        proxy_pass http://quiz_app:3000/quiz/api/;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Next.js（/quiz 配下：API 実体・パスキー等。後方互換で従来パスも維持）
+    location /quiz {
+        proxy_pass http://quiz_app:3000;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # 静的フロント（html/index.html・issues・shaketter・toba・ikura・assets 等）
+    location / {
+        root   /usr/share/nginx/html;
+        index  index.html index.htm;
+        try_files $uri $uri/ =404;
+    }
+
+    error_page 404 /error/404.html;
+
+    location = /error/404.html {
+        root /usr/share/nginx/html;
+        internal;
+    }
+
+    location /error/ {
+        root /usr/share/nginx/html;
+    }
+
+    access_log /var/log/nginx/shake.access.log;
+    error_log  /var/log/nginx/shake.error.log;
+}
