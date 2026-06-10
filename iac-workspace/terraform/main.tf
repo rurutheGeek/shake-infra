@@ -84,6 +84,15 @@ resource "cloudflare_record" "www_domain" {
   proxied = true
 }
 
+# 3b. Aレコード: ayahuya (プロキシ済み・Web用 / アヤフヤ大辞典・技術デモ)
+resource "cloudflare_record" "ayahuya_domain" {
+  zone_id = var.cloudflare_zone_id
+  name    = "ayahuya"
+  content = var.server_ip
+  type    = "A"
+  proxied = true
+}
+
 # 4. SRVレコード: Pixelmon接続用
 resource "cloudflare_record" "pixelmon_srv" {
   zone_id = var.cloudflare_zone_id
