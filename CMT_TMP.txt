@@ -1,0 +1,10 @@
+feat(terraform): CF↔オリジンのSSLモードを Full に固定（サブドメインTLS）
+
+cloudflare_zone_settings_override で ssl=full を宣言。既存の apex 証明書の
+まま ayahuya 等のサブドメインが CF プロキシ経由で TLS 配信できる
+（CF はオリジン証明書のホスト名検証をしないため wildcard origin 証明書が不要）。
+ブラウザ↔CF は Universal SSL が *.ruruthegeek.dpdns.org を自動カバー。
+
+これにより「ワイルドカード証明書の手動発行」前提条件が不要になる。
+
+terraform fmt / validate パス。
