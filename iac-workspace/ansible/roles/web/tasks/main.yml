@@ -150,6 +150,49 @@
   become_user: "{{ app_owner }}"
   when: web_alexa_code_updated
 
+# --- pkhack（ポケモンクイズ Next.js アプリ）: コミットSHAを比較してpullが必要か判断 ---
+- name: "SHA確認 [{{ web_pkhack_repo_url | basename | replace('.git', '') }}] ローカル"
+  ansible.builtin.command:
+    cmd: git rev-parse HEAD
+    chdir: "{{ app_dir }}/pkhack_tmp"
+  register: web_pkhack_local_sha
+  changed_when: false
+  failed_when: false   # 初回はpkhack_tmpが存在しないためrc != 0になる
+  become: true
+  become_user: "{{ app_owner }}"
+
+- name: "SHA確認 [{{ web_pkhack_repo_url | basename | replace('.git', '') }}] リモート ({{ web_pkhack_git_branch | default('main') }})"
+  ansible.builtin.command:
+    cmd: git ls-remote --heads {{ web_pkhack_repo_url }} {{ web_pkhack_git_branch | default('main') }}
+  register: web_pkhack_remote_sha
+  changed_when: false
+  environment:
+    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_deploy -o StrictHostKeyChecking=no"
+  become: true
+  become_user: "{{ app_owner }}"
+
+- name: "更新判定 [{{ web_pkhack_repo_url | basename | replace('.git', '') }}]"
+  ansible.builtin.set_fact:
+    web_pkhack_code_updated: >-
+      {{
+        web_force_rebuild | default(false) | bool or
+        web_pkhack_local_sha.rc != 0 or
+        (web_pkhack_remote_sha.stdout | trim) | length == 0 or
+        (web_pkhack_remote_sha.stdout | trim).split('\t')[0] != (web_pkhack_local_sha.stdout | trim)
+      }}
+
+- name: "Git同期 [{{ web_pkhack_repo_url | basename | replace('.git', '') }}:{{ web_pkhack_git_branch | default('main') }}] → {{ app_dir }}/pkhack_tmp"
+  ansible.builtin.git:
+    repo: "{{ web_pkhack_repo_url }}"
+    dest: "{{ app_dir }}/pkhack_tmp"
+    update: true
+    key_file: "/var/www/.ssh/id_ed25519_deploy"
+    accept_hostkey: true
+    version: "{{ web_pkhack_git_branch | default('main') }}"
+  become: true
+  become_user: "{{ app_owner }}"
+  when: web_pkhack_code_updated
+
 - name: ソースコードを本番ディレクトリへ配置（同期） # noqa: no-handler
   ansible.posix.synchronize:
     src: "{{ app_dir }}/src_tmp/{{ item }}"
@@ -172,6 +215,19 @@
   delegate_to: "{{ inventory_hostname }}"
   when: web_alexa_code_updated
 
+- name: pkhack コード（html/quiz）を本番ディレクトリへ配置（同期） # noqa: no-handler
+  ansible.posix.synchronize:
+    src: "{{ app_dir }}/pkhack_tmp/{{ item }}"   # html → nginx 静的配信、quiz → pkhack_app ビルド
+    dest: "{{ app_dir }}/pkhack/"
+    delete: true
+    rsync_opts:
+      - "--exclude=.git"
+  delegate_to: "{{ inventory_hostname }}"
+  loop:
+    - html
+    - quiz
+  when: web_pkhack_code_updated
+
 - name: インフラ設定ファイル群（Docker Compose等）の配置
   ansible.builtin.copy:
     src: files/web/
@@ -191,6 +247,7 @@
   loop:
     - files/web/conf.d/ssl.conf.template
     - files/web/conf.d/redirect.conf.template
+    - files/web/conf.d/pkhack.conf.template
   register: web_templates_copy
 
 - name: Web用 .env の生成 (Jinja2テンプレート)
@@ -244,11 +301,18 @@
   when: web_alexa_code_updated
   changed_when: true
 
+- name: アプリケーションコード更新に伴う pkhack コンテナの再構築と起動
+  ansible.builtin.command:
+    cmd: docker compose up -d --build pkhack_app
+    chdir: "{{ app_dir }}"
+  when: web_pkhack_code_updated
+  changed_when: true
+
 - name: 設定変更に伴うNginxコンテナの再起動
   ansible.builtin.command:
     cmd: docker compose restart web
     chdir: "{{ app_dir }}"
-  when: web_files_copy.changed or web_templates_copy.changed or web_env_template.changed or web_ssl_key_copy.changed or web_alexa_code_updated
+  when: web_files_copy.changed or web_templates_copy.changed or web_env_template.changed or web_ssl_key_copy.changed or web_alexa_code_updated or web_pkhack_code_updated
   changed_when: true
 
 - name: SSL証明書期限チェックスクリプトの配置
