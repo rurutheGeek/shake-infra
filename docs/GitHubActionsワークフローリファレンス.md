@@ -9,7 +9,7 @@
 | 表示名 | 実体ファイル | 主なトリガー | 目的 |
 | :--- | :--- | :--- | :--- |
 | インフラCI（コード検証） | `.github/workflows/ci_infra.yml` | main への PR / push | マージ前のコード品質・構文・脆弱性・テスト検証 |
-| アプリからの自動デプロイ | `.github/workflows/cd_deploy.yml` | アプリ側からの連携 / 手動 | shake-web・ubsleepy の本番デプロイ |
+| アプリからの自動デプロイ | `.github/workflows/cd_deploy.yml` | アプリ側からの連携 / 手動 | shake-web・pkhack・ayahuya・ubsleepy の本番デプロイ |
 | Terraform ドリフト検知 | `.github/workflows/terraform_drift.yml` | 毎週月曜 / 手動 | コードとクラウド実態の乖離検知 |
 
 実行環境は、インフラCIとドリフト検知が GitHub ホストランナー（ubuntu-latest）、自動デプロイのみ自宅の tarakoserver 上のセルフホストランナーである。
@@ -53,11 +53,11 @@ TF_BACKEND_CONFIG / CF_R2_ACCESS_KEY_ID / CF_R2_SECRET_ACCESS_KEY / CLOUDFLARE_A
 ファイル: `.github/workflows/cd_deploy.yml`
 
 ### 目的
-アプリリポジトリ（shake-web / ubsleepy）の更新を、インフラリポジトリのセルフホストランナー（tarakoserver）が受け取り、Ansible で本番へデプロイする。
+アプリリポジトリ（shake-web / pkhack / ayahuya / ubsleepy）の更新を、インフラリポジトリのセルフホストランナー（tarakoserver）が受け取り、Ansible で本番へデプロイする。shake-web の 3 分割（pkhack/ayahuya/shake）に伴い、各アプリリポジトリが個別の dispatch イベントを送る。
 
 ### トリガー
-- `repository_dispatch`（types: `deploy_shakeweb` / `deploy_ubsleepy`）。アプリ側ワークフローが、`INFRA_REPO_DISPATCH_TOKEN`（Contents 書き込み権限を持つトークン）を用いてインフラリポジトリへ送信する。
-- `workflow_dispatch`（手動）。対象アプリ（target）と、ドライラン（dry_run）の有無を選択できる。
+- `repository_dispatch`（types: `deploy_shakeweb` / `deploy_pkhack` / `deploy_ayahuya` / `deploy_ubsleepy`）。アプリ側ワークフローが、`INFRA_REPO_DISPATCH_TOKEN`（Contents 書き込み権限を持つトークン）を用いてインフラリポジトリへ送信する。
+- `workflow_dispatch`（手動）。対象アプリ（target: shakeweb / pkhack / ayahuya / ubsleepy）と、ドライラン（dry_run）の有無を選択できる。
 
 ### 処理ステップ
 | ステップ表示名 | 内容 |
@@ -67,7 +67,10 @@ TF_BACKEND_CONFIG / CF_R2_ACCESS_KEY_ID / CF_R2_SECRET_ACCESS_KEY / CLOUDFLARE_A
 | Ansible コレクションのインストール | requirements.yml を適用 |
 | ubsleepy のデプロイ | 対象が ubsleepy のとき `--tags ubsleepy` を実行 |
 | shake-web のデプロイ | 対象が shakeweb のとき `--tags web` を実行 |
+| pkhack のデプロイ | 対象が pkhack のとき `--tags web` を実行（pkhack repo を pull→`pkhack_app` 再ビルド） |
+| ayahuya のデプロイ | 対象が ayahuya のとき `--tags web` を実行（ayahuya repo を pull→静的配信） |
 | スモークテスト（shake-web / DB連携エンドポイント） | 実HTTPS経路で `/quiz/api/bsquiz/pokedex` を検証。200 以外ならデプロイを失敗扱い |
+| スモークテスト（pkhack / ayahuya） | 各サブドメインの代表エンドポイント（`pkhack.…/quiz/api/bsquiz/pokedex`・`ayahuya.…/docs/words/`）を検証 |
 | 認証情報のクリーンアップ | 生成した鍵類を削除（常時） |
 | Discord 通知（成功時 / 失敗時） | 結果を Discord に通知 |
 
