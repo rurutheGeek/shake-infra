@@ -48,6 +48,21 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # shake ブランドの外向き API 名前空間 /api/* → Next.js 実体 /quiz/api/*
+    # （リポジトリ3分割 Phase C。overlap 期間中 apex のクライアントも /api/* を使うため互換配置）
+    location /api/ {
+        proxy_pass http://quiz_app:3000/quiz/api/;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     error_page 404 /error/404.html;
     
     location = /error/404.html {
