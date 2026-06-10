@@ -118,8 +118,12 @@ jobs:
           sed -i -E 's#^([[:space:]]*endpoint[[:space:]]*=[[:space:]]*)([^"[:space:]].*[^[:space:]])[[:space:]]*$#\1"\2"#' ci_backend.hcl
           echo "--- ci_backend.hcl (endpoint 行) ---"; grep -n endpoint ci_backend.hcl || true
 
+      # Plan は PR への「プレビューコメント」用。R2 バックエンド/シークレットの状態に依存し
+      # init/plan が失敗してもジョブ全体は落とさない（best-effort）。設定の妥当性は
+      # 上の「Terraform 整形・検証」ジョブ（terraform validate, -backend=false）が担保する。
       - name: Terraform 初期化
         run: terraform init -backend-config=ci_backend.hcl
+        continue-on-error: true
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
