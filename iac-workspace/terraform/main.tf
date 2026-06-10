@@ -111,6 +111,20 @@ resource "cloudflare_record" "pixelmon_srv" {
 }
 
 # ==========================================
+# Zone Settings（CF↔オリジン TLS モード）
+# ==========================================
+# Full にすることで、既存の apex 証明書のまま各サブドメイン（ayahuya 等）が
+# Cloudflare プロキシ経由で TLS 配信できる（CF はオリジン証明書のホスト名検証を
+# しないため、ワイルドカード origin 証明書が不要）。
+# ブラウザ↔CF は Universal SSL が *.ruruthegeek.dpdns.org（1階層）を自動カバーする。
+resource "cloudflare_zone_settings_override" "shake_zone" {
+  zone_id = var.cloudflare_zone_id
+  settings {
+    ssl = "full"
+  }
+}
+
+# ==========================================
 # R2 Bucket
 # ==========================================
 
