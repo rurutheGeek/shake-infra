@@ -9,6 +9,7 @@ services:
     volumes:
       - ./html:/usr/share/nginx/html
       - ./pkhack/html:/usr/share/nginx/pkhack:ro   # pkhack サブドメイン（静的ハブ＋assets）
+      - ./ayahuya/html:/usr/share/nginx/ayahuya:ro   # ayahuya サブドメイン（純静的）
       - ./log:/var/log/nginx
       - ./certs:/etc/nginx/certs:ro
       - ./templates:/etc/nginx/templates:ro
