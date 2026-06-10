@@ -24,9 +24,10 @@ server {
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
 
-    # 外向き API 名前空間 /api/* → Next.js 実体 /quiz/api/*
+    # 外向き API 名前空間 /api/* → Next.js 実体 /quiz/api/*（明示 rewrite で確実に付け替え）
     location /api/ {
-        proxy_pass http://quiz_app:3000/quiz/api/;
+        rewrite ^/api/(.*)$ /quiz/api/$1 break;
+        proxy_pass http://quiz_app:3000;
 
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
