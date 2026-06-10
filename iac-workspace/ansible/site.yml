@@ -116,6 +116,8 @@
         app_dir: /var/www/html/shake
         web_repo_url: "git@github.com:rurutheGeek/shake-web.git"
         web_alexa_repo_url: "https://github.com/rurutheGeek/pokebs_alexaskill.git"
+        web_pkhack_repo_url: "git@github.com:rurutheGeek/pkhack.git"
+        web_ayahuya_repo_url: "git@github.com:rurutheGeek/ayahuya.git"
       when: inventory_hostname in groups['home_node1']
       tags: web
 
