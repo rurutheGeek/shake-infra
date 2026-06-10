@@ -84,18 +84,28 @@ resource "cloudflare_record" "www_domain" {
   proxied = true
 }
 
-# 3d. Aレコード: shake (プロキシ済み・Web用 / Issues・Shaketter・ToBa・Ikura)
-resource "cloudflare_record" "shake_domain" {
-  zone_id = var.cloudflare_zone_id
-  name    = "shake"
-# 3c. Aレコード: pkhack (プロキシ済み・Web用 / ポケモンクイズ)
-resource "cloudflare_record" "pkhack_domain" {
-  zone_id = var.cloudflare_zone_id
-  name    = "pkhack"
 # 3b. Aレコード: ayahuya (プロキシ済み・Web用 / アヤフヤ大辞典・技術デモ)
 resource "cloudflare_record" "ayahuya_domain" {
   zone_id = var.cloudflare_zone_id
   name    = "ayahuya"
+  content = var.server_ip
+  type    = "A"
+  proxied = true
+}
+
+# 3c. Aレコード: pkhack (プロキシ済み・Web用 / ポケモンクイズ)
+resource "cloudflare_record" "pkhack_domain" {
+  zone_id = var.cloudflare_zone_id
+  name    = "pkhack"
+  content = var.server_ip
+  type    = "A"
+  proxied = true
+}
+
+# 3d. Aレコード: shake (プロキシ済み・Web用 / Issues・Shaketter・ToBa・Ikura)
+resource "cloudflare_record" "shake_domain" {
+  zone_id = var.cloudflare_zone_id
+  name    = "shake"
   content = var.server_ip
   type    = "A"
   proxied = true
@@ -305,6 +315,11 @@ data "github_repository" "pkhack" {
 # push 時に shake-infra へ deploy_pkhack を dispatch するためのトークン
 resource "github_actions_secret" "pkhack_dispatch_token" {
   repository  = data.github_repository.pkhack.name
+  secret_name = "INFRA_REPO_DISPATCH_TOKEN"
+  value       = var.infra_repo_dispatch_token
+}
+
+# ------------------------------------------
 # ayahuya（アヤフヤ大辞典・技術デモ / shake-web 3分割 Phase A）
 # ------------------------------------------
 data "github_repository" "ayahuya" {
@@ -318,12 +333,9 @@ resource "github_actions_secret" "ayahuya_dispatch_token" {
   value       = var.infra_repo_dispatch_token
 }
 
-# web ロールが private な pkhack を clone するための read-only Deploy key。
+# private な pkhack/ayahuya を web ロールが clone するための read-only Deploy key。
 # 公開鍵は shakeserver の /var/www/.ssh/id_ed25519_deploy.pub（web ロールが生成）。
 # 値が未設定の間はスキップ（chicken-egg 回避）。
-# web ロールが private な ayahuya を clone するための Deploy key（読み取り専用）。
-# 公開鍵は shakeserver の /var/www/.ssh/id_ed25519_deploy.pub（web ロールが生成）。
-# 値が未設定の間はスキップする（chicken-egg 回避）。
 variable "web_deploy_public_key" {
   description = "shakeserver の web デプロイ用 SSH 公開鍵（id_ed25519_deploy.pub）。未設定なら Deploy key 登録をスキップ。"
   type        = string
@@ -334,6 +346,10 @@ resource "github_repository_deploy_key" "pkhack_deploy_key" {
   count      = var.web_deploy_public_key == "" ? 0 : 1
   title      = "shakeserver web role (read-only)"
   repository = data.github_repository.pkhack.name
+  key        = var.web_deploy_public_key
+  read_only  = true
+}
+
 resource "github_repository_deploy_key" "ayahuya_deploy_key" {
   count      = var.web_deploy_public_key == "" ? 0 : 1
   title      = "shakeserver web role (read-only)"
