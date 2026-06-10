@@ -84,6 +84,15 @@ resource "cloudflare_record" "www_domain" {
   proxied = true
 }
 
+# 3d. Aレコード: shake (プロキシ済み・Web用 / Issues・Shaketter・ToBa・Ikura)
+resource "cloudflare_record" "shake_domain" {
+  zone_id = var.cloudflare_zone_id
+  name    = "shake"
+  content = var.server_ip
+  type    = "A"
+  proxied = true
+}
+
 # 4. SRVレコード: Pixelmon接続用
 resource "cloudflare_record" "pixelmon_srv" {
   zone_id = var.cloudflare_zone_id
