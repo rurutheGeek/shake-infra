@@ -273,6 +273,37 @@ resource "github_actions_secret" "shakeweb_dispatch_token" {
   value       = var.infra_repo_dispatch_token
 }
 
+# ------------------------------------------
+# ayahuya（アヤフヤ大辞典・技術デモ / shake-web 3分割 Phase A）
+# ------------------------------------------
+data "github_repository" "ayahuya" {
+  name = "ayahuya"
+}
+
+# push 時に shake-infra へ deploy_ayahuya を dispatch するためのトークン
+resource "github_actions_secret" "ayahuya_dispatch_token" {
+  repository  = data.github_repository.ayahuya.name
+  secret_name = "INFRA_REPO_DISPATCH_TOKEN"
+  value       = var.infra_repo_dispatch_token
+}
+
+# web ロールが private な ayahuya を clone するための Deploy key（読み取り専用）。
+# 公開鍵は shakeserver の /var/www/.ssh/id_ed25519_deploy.pub（web ロールが生成）。
+# 値が未設定の間はスキップする（chicken-egg 回避）。
+variable "web_deploy_public_key" {
+  description = "shakeserver の web デプロイ用 SSH 公開鍵（id_ed25519_deploy.pub）。未設定なら Deploy key 登録をスキップ。"
+  type        = string
+  default     = ""
+}
+
+resource "github_repository_deploy_key" "ayahuya_deploy_key" {
+  count      = var.web_deploy_public_key == "" ? 0 : 1
+  title      = "shakeserver web role (read-only)"
+  repository = data.github_repository.ayahuya.name
+  key        = var.web_deploy_public_key
+  read_only  = true
+}
+
 # ==========================================
 # Cloudflare Workers (Failover / Maintenance)
 # ==========================================
