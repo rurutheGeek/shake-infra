@@ -8,12 +8,15 @@ services:
       - "8443:8443"
     volumes:
       - ./html:/usr/share/nginx/html
+      - ./pkhack/html:/usr/share/nginx/pkhack:ro   # pkhack サブドメイン（静的ハブ＋assets）
+      - ./ayahuya/html:/usr/share/nginx/ayahuya:ro   # ayahuya サブドメイン（純静的）
       - ./log:/var/log/nginx
       - ./certs:/etc/nginx/certs:ro
       - ./templates:/etc/nginx/templates:ro
     restart: always
     depends_on:
       - quiz_app
+      - pkhack_app
 
   quiz_app:
     build: ./quiz
@@ -36,6 +39,13 @@ services:
       - SHAKEWEB_DB_READER_PASSWORD=${SHAKEWEB_DB_READER_PASSWORD}
       - SHAKEWEB_DB_EDITOR_USER=${SHAKEWEB_DB_EDITOR_USER}
       - SHAKEWEB_DB_EDITOR_PASSWORD=${SHAKEWEB_DB_EDITOR_PASSWORD}
+      - PKHACK_DB_HOST=${PKHACK_DB_HOST}
+      - PKHACK_DB_PORT=${PKHACK_DB_PORT}
+      - PKHACK_DB_NAME=${PKHACK_DB_NAME}
+      - PKHACK_DB_READER_USER=${PKHACK_DB_READER_USER}
+      - PKHACK_DB_READER_PASSWORD=${PKHACK_DB_READER_PASSWORD}
+      - PKHACK_DB_EDITOR_USER=${PKHACK_DB_EDITOR_USER}
+      - PKHACK_DB_EDITOR_PASSWORD=${PKHACK_DB_EDITOR_PASSWORD}
 
   alexa_skill:
     build: ./alexa
@@ -45,4 +55,26 @@ services:
     restart: always
     volumes:
       - ./alexa/logs:/app/logs
+
+  # pkhack サブドメイン用 Next.js アプリ（ポケモンクイズ）。
+  # nginx から pkhack_app:3000 で参照するためホストポートは公開しない（quiz_app と競合回避）。
+  pkhack_app:
+    build: ./pkhack/quiz
+    container_name: pkhack_app
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - DB_USER=${DB_USER}
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT}
+      - PKHACK_DB_HOST=${PKHACK_DB_HOST}
+      - PKHACK_DB_PORT=${PKHACK_DB_PORT}
+      - PKHACK_DB_NAME=${PKHACK_DB_NAME}
+      - PKHACK_DB_READER_USER=${PKHACK_DB_READER_USER}
+      - PKHACK_DB_READER_PASSWORD=${PKHACK_DB_READER_PASSWORD}
+      - PKHACK_DB_EDITOR_USER=${PKHACK_DB_EDITOR_USER}
+      - PKHACK_DB_EDITOR_PASSWORD=${PKHACK_DB_EDITOR_PASSWORD}
 

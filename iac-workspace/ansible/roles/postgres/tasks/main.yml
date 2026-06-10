@@ -115,3 +115,63 @@
       ALTER USER "{{ shakeweb_db_user_editor }}" WITH PASSWORD '{{ shakeweb_db_password_editor | replace("'", "''") }}';
   changed_when: false
   no_log: true
+
+# --- pkhack DB の冪等セットアップ（リポジトリ3分割 Phase B / quiz_rankings 用）---
+# ポケモンクイズのランキングを shakeweb DB から分離した専用 DB。
+# Vault に pkhack_db_password_reader / pkhack_db_password_editor を追加するまでは
+# when ガードでスキップする（既存 postgres デプロイを壊さないため）。
+# 非機密の名前は role 内デフォルト（pkhack / pkhack_reader / pkhack_editor）。
+- name: pkhack DB の作成（存在しない場合のみ）
+  ansible.builtin.command:
+    cmd: docker exec -i shake_postgres psql -U {{ postgres_user }} -v ON_ERROR_STOP=1
+    stdin: |
+      SELECT 'CREATE DATABASE {{ pkhack_db_name | default('pkhack') }}'
+      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ pkhack_db_name | default('pkhack') }}')\gexec
+  changed_when: false
+  when:
+    - pkhack_db_password_reader is defined
+    - pkhack_db_password_editor is defined
+
+- name: pkhack ユーザーの作成と権限付与（存在しない場合のみ）
+  ansible.builtin.command:
+    cmd: docker exec -i shake_postgres psql -U {{ postgres_user }} -d {{ pkhack_db_name | default('pkhack') }} -v ON_ERROR_STOP=1
+    stdin: |
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{ pkhack_db_user_reader | default('pkhack_reader') }}') THEN
+          CREATE USER "{{ pkhack_db_user_reader | default('pkhack_reader') }}" WITH PASSWORD '{{ pkhack_db_password_reader | replace("'", "''") }}';
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{ pkhack_db_user_editor | default('pkhack_editor') }}') THEN
+          CREATE USER "{{ pkhack_db_user_editor | default('pkhack_editor') }}" WITH PASSWORD '{{ pkhack_db_password_editor | replace("'", "''") }}';
+        END IF;
+      END
+      $$;
+      GRANT CONNECT ON DATABASE {{ pkhack_db_name | default('pkhack') }} TO "{{ pkhack_db_user_reader | default('pkhack_reader') }}";
+      GRANT CONNECT ON DATABASE {{ pkhack_db_name | default('pkhack') }} TO "{{ pkhack_db_user_editor | default('pkhack_editor') }}";
+      GRANT USAGE ON SCHEMA public TO "{{ pkhack_db_user_reader | default('pkhack_reader') }}";
+      GRANT USAGE, CREATE ON SCHEMA public TO "{{ pkhack_db_user_editor | default('pkhack_editor') }}";
+      GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{{ pkhack_db_user_reader | default('pkhack_reader') }}";
+      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{{ pkhack_db_user_editor | default('pkhack_editor') }}";
+      GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO "{{ pkhack_db_user_reader | default('pkhack_reader') }}";
+      GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "{{ pkhack_db_user_editor | default('pkhack_editor') }}";
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO "{{ pkhack_db_user_reader | default('pkhack_reader') }}";
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON SEQUENCES TO "{{ pkhack_db_user_reader | default('pkhack_reader') }}";
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{{ pkhack_db_user_editor | default('pkhack_editor') }}";
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO "{{ pkhack_db_user_editor | default('pkhack_editor') }}";
+  changed_when: false
+  no_log: true
+  when:
+    - pkhack_db_password_reader is defined
+    - pkhack_db_password_editor is defined
+
+- name: pkhack ユーザーのパスワードを Vault 値へ同期（冪等収束）
+  ansible.builtin.command:
+    cmd: docker exec -i shake_postgres psql -U {{ postgres_user }} -d {{ pkhack_db_name | default('pkhack') }} -v ON_ERROR_STOP=1
+    stdin: |
+      ALTER USER "{{ pkhack_db_user_reader | default('pkhack_reader') }}" WITH PASSWORD '{{ pkhack_db_password_reader | replace("'", "''") }}';
+      ALTER USER "{{ pkhack_db_user_editor | default('pkhack_editor') }}" WITH PASSWORD '{{ pkhack_db_password_editor | replace("'", "''") }}';
+  changed_when: false
+  no_log: true
+  when:
+    - pkhack_db_password_reader is defined
+    - pkhack_db_password_editor is defined
