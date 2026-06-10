@@ -8,6 +8,7 @@ services:
       - "8443:8443"
     volumes:
       - ./html:/usr/share/nginx/html
+      - ./ayahuya/html:/usr/share/nginx/ayahuya:ro   # ayahuya サブドメイン（純静的）
       - ./log:/var/log/nginx
       - ./certs:/etc/nginx/certs:ro
       - ./templates:/etc/nginx/templates:ro
