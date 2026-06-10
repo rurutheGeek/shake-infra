@@ -110,7 +110,13 @@ jobs:
         uses: hashicorp/setup-terraform@v4
 
       - name: バックエンド設定の書き出し
-        run: echo "${{ secrets.TF_BACKEND_CONFIG }}" > ci_backend.hcl
+        run: |
+          echo "${{ secrets.TF_BACKEND_CONFIG }}" > ci_backend.hcl
+          # 旧 TF_BACKEND_CONFIG secret は endpoint がクオート無しの場合があり、
+          # HCL 構文エラー（Missing newline after argument）で init が失敗する。
+          # 未クオートなら補正する（既にクオート済みなら変更しない）。
+          sed -i -E 's#^([[:space:]]*endpoint[[:space:]]*=[[:space:]]*)([^"[:space:]].*[^[:space:]])[[:space:]]*$#\1"\2"#' ci_backend.hcl
+          echo "--- ci_backend.hcl (endpoint 行) ---"; grep -n endpoint ci_backend.hcl || true
 
       - name: Terraform 初期化
         run: terraform init -backend-config=ci_backend.hcl
