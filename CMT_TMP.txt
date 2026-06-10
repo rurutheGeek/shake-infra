@@ -1,0 +1,11 @@
+feat(postgres/web): pkhack 専用DBのプロビジョニングと env 配線
+
+shake-web 3分割(Phase B)の前提。ポケモンクイズのランキング(quiz_rankings)を
+shakeweb DB から pkhack 専用DBへ分離するためのインフラ側対応。
+
+- postgres ロール: pkhack DB + pkhack_reader/editor を冪等作成（shakeweb と同パターン）。
+  Vault に pkhack_db_password_reader/editor を追加するまでは when ガードでスキップ
+  （既存 postgres デプロイを壊さない）。非機密の名前は role 内デフォルト。
+- web env.j2 / docker-compose(quiz_app): PKHACK_DB_* を配線（パスワード未設定時は空）。
+
+ansible-lint(production) パス。
