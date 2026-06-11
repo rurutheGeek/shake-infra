@@ -94,10 +94,12 @@ jobs:
             --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
             --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}" $EXTRA_ARGS
 
-      # デプロイ"成功"＝アプリが実際に動く、ではない。実ユーザー経路で
-      # DB連携エンドポイントを叩き、200でなければデプロイを失敗扱いにする
-      # （Cloudflare→proxy→nginx→quiz→PostgreSQL まで含めた疎通検証）。
-      - name: スモークテスト（shake-web / DB連携エンドポイント）
+      # デプロイ"成功"＝アプリが実際に動く、ではない。実ユーザー経路で確認する
+      # （Cloudflare→proxy→nginx まで含めた疎通検証）。
+      # Phase D 完了後の apex は静的ランディング＋旧URLリダイレクトのみで、
+      # /quiz・/api 等は各サブドメインへ 301/308 リダイレクトされる
+      # （DB連携の実体は pkhack/shake サブドメイン側のスモークテストで検証する）。
+      - name: スモークテスト（shake-web / 旧URLリダイレクト）
         if: github.event.action == 'deploy_shakeweb' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'shakeweb')
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
@@ -110,13 +112,18 @@ jobs:
           for i in $(seq 1 12); do
             code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/quiz/api/bsquiz/pokedex" || echo 000)
             echo "  attempt $i: /quiz/api/bsquiz/pokedex -> $code"
-            if [ "$code" = "200" ]; then ok=1; break; fi
+            if [ "$code" = "308" ]; then ok=1; break; fi
             sleep 5
           done
           if [ "$ok" != "1" ]; then
-            echo "::error::Smoke test FAILED: DB連携エンドポイントが200を返しません（DB認証ズレ等を疑う）"
+            echo "::error::Smoke test FAILED: /quiz が pkhack へ308リダイレクトされません"
             exit 1
           fi
+          loc=$(curl -s -o /dev/null -w "%{redirect_url}" "$BASE/quiz/api/bsquiz/pokedex")
+          case "$loc" in
+            https://pkhack.ruruthegeek.dpdns.org/*) echo "redirect target OK: $loc" ;;
+            *) echo "::error::Smoke test FAILED: リダイレクト先が想定外です: $loc"; exit 1 ;;
+          esac
           curl -fsS -o /dev/null "$BASE/" && echo "root page OK"
           echo "Smoke test PASSED"
 
