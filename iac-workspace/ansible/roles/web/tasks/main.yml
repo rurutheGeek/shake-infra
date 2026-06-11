@@ -167,7 +167,9 @@
   register: web_pkhack_remote_sha
   changed_when: false
   environment:
-    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_deploy -o StrictHostKeyChecking=no"
+    # pkhack は非公開リポジトリ。専用 deploy key（pkhack repo に登録済み）で認証する。
+    # IdentitiesOnly=yes で他の deploy key を提示せず、対象鍵のみで認証する（多鍵環境での接続切断対策）。
+    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_pkhack -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
   become: true
   become_user: "{{ app_owner }}"
 
@@ -176,9 +178,9 @@
     web_pkhack_code_updated: >-
       {{
         web_force_rebuild | default(false) | bool or
-        web_pkhack_local_sha.rc != 0 or
-        (web_pkhack_remote_sha.stdout | trim) | length == 0 or
-        (web_pkhack_remote_sha.stdout | trim).split('\t')[0] != (web_pkhack_local_sha.stdout | trim)
+        (web_pkhack_local_sha.rc | default(1)) != 0 or
+        (web_pkhack_remote_sha.stdout | default('') | trim) | length == 0 or
+        (web_pkhack_remote_sha.stdout | default('') | trim).split('\t')[0] != (web_pkhack_local_sha.stdout | default('') | trim)
       }}
 
 - name: "Git同期 [{{ web_pkhack_repo_url | basename | replace('.git', '') }}:{{ web_pkhack_git_branch | default('main') }}] → {{ app_dir }}/pkhack_tmp"
@@ -186,9 +188,10 @@
     repo: "{{ web_pkhack_repo_url }}"
     dest: "{{ app_dir }}/pkhack_tmp"
     update: true
-    key_file: "/var/www/.ssh/id_ed25519_deploy"
     accept_hostkey: true
     version: "{{ web_pkhack_git_branch | default('main') }}"
+  environment:
+    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_pkhack -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
   become: true
   become_user: "{{ app_owner }}"
   when: web_pkhack_code_updated
@@ -210,7 +213,9 @@
   register: web_ayahuya_remote_sha
   changed_when: false
   environment:
-    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_deploy -o StrictHostKeyChecking=no"
+    # ayahuya は非公開リポジトリ。専用 deploy key（ayahuya repo に登録済み）で認証する。
+    # IdentitiesOnly=yes で他の deploy key を提示せず、対象鍵のみで認証する（多鍵環境での接続切断対策）。
+    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_ayahuya -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
   become: true
   become_user: "{{ app_owner }}"
 
@@ -219,9 +224,9 @@
     web_ayahuya_code_updated: >-
       {{
         web_force_rebuild | default(false) | bool or
-        web_ayahuya_local_sha.rc != 0 or
-        (web_ayahuya_remote_sha.stdout | trim) | length == 0 or
-        (web_ayahuya_remote_sha.stdout | trim).split('\t')[0] != (web_ayahuya_local_sha.stdout | trim)
+        (web_ayahuya_local_sha.rc | default(1)) != 0 or
+        (web_ayahuya_remote_sha.stdout | default('') | trim) | length == 0 or
+        (web_ayahuya_remote_sha.stdout | default('') | trim).split('\t')[0] != (web_ayahuya_local_sha.stdout | default('') | trim)
       }}
 
 - name: "Git同期 [{{ web_ayahuya_repo_url | basename | replace('.git', '') }}:{{ web_ayahuya_git_branch | default('main') }}] → {{ app_dir }}/ayahuya_tmp"
@@ -229,9 +234,10 @@
     repo: "{{ web_ayahuya_repo_url }}"
     dest: "{{ app_dir }}/ayahuya_tmp"
     update: true
-    key_file: "/var/www/.ssh/id_ed25519_deploy"
     accept_hostkey: true
     version: "{{ web_ayahuya_git_branch | default('main') }}"
+  environment:
+    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_ayahuya -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
   become: true
   become_user: "{{ app_owner }}"
   when: web_ayahuya_code_updated
