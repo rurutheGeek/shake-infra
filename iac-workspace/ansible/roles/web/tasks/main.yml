@@ -67,6 +67,73 @@
       ==================================================================
   when: "'successfully authenticated' not in web_github_ssh_check.stderr"
 
+# --- pkhack / ayahuya 用のリポジトリ別 Deploy Key ---
+# GitHub は同一 SSH 鍵を複数リポジトリの Deploy Key として使い回せないため
+# （"key already in use"）、private な pkhack / ayahuya にはそれぞれ専用鍵を生成・登録する。
+- name: pkhack 用 Deploy Key の生成
+  community.crypto.openssh_keypair:
+    path: "/var/www/.ssh/id_ed25519_pkhack"
+    type: ed25519
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+
+- name: pkhack 用公開鍵の取得
+  ansible.builtin.slurp:
+    src: "/var/www/.ssh/id_ed25519_pkhack.pub"
+  register: web_pkhack_pub_key
+
+- name: pkhack への接続確認
+  ansible.builtin.command: "ssh -T -o StrictHostKeyChecking=no -i /var/www/.ssh/id_ed25519_pkhack git@github.com"
+  register: web_pkhack_ssh_check
+  failed_when: false
+  changed_when: false
+  become: true
+  become_user: "{{ app_owner }}"
+
+- name: pkhack の Deploy Key 未登録チェック（未登録なら公開鍵を表示して停止）
+  ansible.builtin.fail:
+    msg: |
+      ==================================================================
+      pkhack リポジトリに Deploy Key が未登録です。以下の公開鍵を
+      https://github.com/rurutheGeek/pkhack/settings/keys に（書き込み不要で）登録し、
+      再実行してください。
+
+      {{ web_pkhack_pub_key['content'] | b64decode }}
+      ==================================================================
+  when: "'successfully authenticated' not in web_pkhack_ssh_check.stderr"
+
+- name: ayahuya 用 Deploy Key の生成
+  community.crypto.openssh_keypair:
+    path: "/var/www/.ssh/id_ed25519_ayahuya"
+    type: ed25519
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+
+- name: ayahuya 用公開鍵の取得
+  ansible.builtin.slurp:
+    src: "/var/www/.ssh/id_ed25519_ayahuya.pub"
+  register: web_ayahuya_pub_key
+
+- name: ayahuya への接続確認
+  ansible.builtin.command: "ssh -T -o StrictHostKeyChecking=no -i /var/www/.ssh/id_ed25519_ayahuya git@github.com"
+  register: web_ayahuya_ssh_check
+  failed_when: false
+  changed_when: false
+  become: true
+  become_user: "{{ app_owner }}"
+
+- name: ayahuya の Deploy Key 未登録チェック（未登録なら公開鍵を表示して停止）
+  ansible.builtin.fail:
+    msg: |
+      ==================================================================
+      ayahuya リポジトリに Deploy Key が未登録です。以下の公開鍵を
+      https://github.com/rurutheGeek/ayahuya/settings/keys に（書き込み不要で）登録し、
+      再実行してください。
+
+      {{ web_ayahuya_pub_key['content'] | b64decode }}
+      ==================================================================
+  when: "'successfully authenticated' not in web_ayahuya_ssh_check.stderr"
+
 # --- Webアプリ: コミットSHAを比較してpullが必要か判断 ---
 - name: "SHA確認 [{{ web_repo_url | basename | replace('.git', '') }}] ローカル"
   ansible.builtin.command:
@@ -167,7 +234,7 @@
   register: web_pkhack_remote_sha
   changed_when: false
   environment:
-    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_deploy -o StrictHostKeyChecking=no"
+    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_pkhack -o StrictHostKeyChecking=no"
   become: true
   become_user: "{{ app_owner }}"
 
@@ -186,7 +253,7 @@
     repo: "{{ web_pkhack_repo_url }}"
     dest: "{{ app_dir }}/pkhack_tmp"
     update: true
-    key_file: "/var/www/.ssh/id_ed25519_deploy"
+    key_file: "/var/www/.ssh/id_ed25519_pkhack"
     accept_hostkey: true
     version: "{{ web_pkhack_git_branch | default('main') }}"
   become: true
@@ -210,7 +277,7 @@
   register: web_ayahuya_remote_sha
   changed_when: false
   environment:
-    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_deploy -o StrictHostKeyChecking=no"
+    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_ayahuya -o StrictHostKeyChecking=no"
   become: true
   become_user: "{{ app_owner }}"
 
@@ -229,7 +296,7 @@
     repo: "{{ web_ayahuya_repo_url }}"
     dest: "{{ app_dir }}/ayahuya_tmp"
     update: true
-    key_file: "/var/www/.ssh/id_ed25519_deploy"
+    key_file: "/var/www/.ssh/id_ed25519_ayahuya"
     accept_hostkey: true
     version: "{{ web_ayahuya_git_branch | default('main') }}"
   become: true
