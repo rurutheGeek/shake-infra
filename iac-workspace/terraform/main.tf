@@ -325,10 +325,38 @@ resource "github_actions_secret" "ayahuya_dispatch_token" {
   value       = var.infra_repo_dispatch_token
 }
 
-# 注: pkhack / ayahuya の clone は shakeserver の Deploy Key（/var/www/.ssh/id_ed25519_deploy）で
-# 行う。この鍵は既に各リポジトリで使用可能（GitHub は同一鍵を複数リポジトリの Deploy Key として
-# 重複登録できず "key already in use" になるため）、Terraform では登録しない。鍵の登録は GitHub 側で
-# 管理する（web ロールが未登録時にエラーで公開鍵を表示する仕組みあり）。
+# pkhack / ayahuya の read-only Deploy Key 登録。
+# web ロールがサーバ上で生成する「リポジトリ別」公開鍵（id_ed25519_pkhack / id_ed25519_ayahuya）を
+# 各変数に設定して apply すると、対応リポジトリへ登録される。鍵がリポジトリ別なので
+# "key already in use"（同一鍵の重複登録エラー）は発生しない。
+# 公開鍵は `sudo cat /var/www/.ssh/id_ed25519_<repo>.pub` で取得し terraform.tfvars に記入する。
+variable "pkhack_deploy_public_key" {
+  description = "shakeserver の pkhack 用 Deploy 公開鍵（id_ed25519_pkhack.pub）。未設定なら登録をスキップ。"
+  type        = string
+  default     = ""
+}
+
+variable "ayahuya_deploy_public_key" {
+  description = "shakeserver の ayahuya 用 Deploy 公開鍵（id_ed25519_ayahuya.pub）。未設定なら登録をスキップ。"
+  type        = string
+  default     = ""
+}
+
+resource "github_repository_deploy_key" "pkhack_deploy_key" {
+  count      = var.pkhack_deploy_public_key == "" ? 0 : 1
+  title      = "shakeserver web role (read-only)"
+  repository = data.github_repository.pkhack.name
+  key        = var.pkhack_deploy_public_key
+  read_only  = true
+}
+
+resource "github_repository_deploy_key" "ayahuya_deploy_key" {
+  count      = var.ayahuya_deploy_public_key == "" ? 0 : 1
+  title      = "shakeserver web role (read-only)"
+  repository = data.github_repository.ayahuya.name
+  key        = var.ayahuya_deploy_public_key
+  read_only  = true
+}
 
 # ==========================================
 # Cloudflare Workers (Failover / Maintenance)
