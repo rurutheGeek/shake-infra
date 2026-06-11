@@ -77,6 +77,15 @@
     owner: "{{ app_owner }}"
     group: "{{ app_group }}"
 
+# 両鍵を先に生成しておく（pkhack の登録確認で停止しても ayahuya 鍵は生成済みにし、
+# 1回のデプロイで両方の公開鍵を取得できるようにする）。
+- name: ayahuya 用 Deploy Key の生成
+  community.crypto.openssh_keypair:
+    path: "/var/www/.ssh/id_ed25519_ayahuya"
+    type: ed25519
+    owner: "{{ app_owner }}"
+    group: "{{ app_group }}"
+
 - name: pkhack 用公開鍵の取得
   ansible.builtin.slurp:
     src: "/var/www/.ssh/id_ed25519_pkhack.pub"
@@ -101,13 +110,6 @@
       {{ web_pkhack_pub_key['content'] | b64decode }}
       ==================================================================
   when: "'successfully authenticated' not in web_pkhack_ssh_check.stderr"
-
-- name: ayahuya 用 Deploy Key の生成
-  community.crypto.openssh_keypair:
-    path: "/var/www/.ssh/id_ed25519_ayahuya"
-    type: ed25519
-    owner: "{{ app_owner }}"
-    group: "{{ app_group }}"
 
 - name: ayahuya 用公開鍵の取得
   ansible.builtin.slurp:
