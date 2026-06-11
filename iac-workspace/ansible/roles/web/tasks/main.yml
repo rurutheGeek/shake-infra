@@ -165,21 +165,6 @@
   ansible.builtin.command:
     cmd: git ls-remote --heads {{ web_pkhack_repo_url }} {{ web_pkhack_git_branch | default('main') }}
   register: web_pkhack_remote_sha
-# --- ayahuya（アヤフヤ大辞典・技術デモ等の純静的サイト）: コミットSHAを比較してpullが必要か判断 ---
-- name: "SHA確認 [{{ web_ayahuya_repo_url | basename | replace('.git', '') }}] ローカル"
-  ansible.builtin.command:
-    cmd: git rev-parse HEAD
-    chdir: "{{ app_dir }}/ayahuya_tmp"
-  register: web_ayahuya_local_sha
-  changed_when: false
-  failed_when: false   # 初回はayahuya_tmpが存在しないためrc != 0になる
-  become: true
-  become_user: "{{ app_owner }}"
-
-- name: "SHA確認 [{{ web_ayahuya_repo_url | basename | replace('.git', '') }}] リモート ({{ web_ayahuya_git_branch | default('main') }})"
-  ansible.builtin.command:
-    cmd: git ls-remote --heads {{ web_ayahuya_repo_url }} {{ web_ayahuya_git_branch | default('main') }}
-  register: web_ayahuya_remote_sha
   changed_when: false
   environment:
     GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_deploy -o StrictHostKeyChecking=no"
@@ -207,6 +192,28 @@
   become: true
   become_user: "{{ app_owner }}"
   when: web_pkhack_code_updated
+
+# --- ayahuya（アヤフヤ大辞典・技術デモ等の純静的サイト）: コミットSHAを比較してpullが必要か判断 ---
+- name: "SHA確認 [{{ web_ayahuya_repo_url | basename | replace('.git', '') }}] ローカル"
+  ansible.builtin.command:
+    cmd: git rev-parse HEAD
+    chdir: "{{ app_dir }}/ayahuya_tmp"
+  register: web_ayahuya_local_sha
+  changed_when: false
+  failed_when: false   # 初回はayahuya_tmpが存在しないためrc != 0になる
+  become: true
+  become_user: "{{ app_owner }}"
+
+- name: "SHA確認 [{{ web_ayahuya_repo_url | basename | replace('.git', '') }}] リモート ({{ web_ayahuya_git_branch | default('main') }})"
+  ansible.builtin.command:
+    cmd: git ls-remote --heads {{ web_ayahuya_repo_url }} {{ web_ayahuya_git_branch | default('main') }}
+  register: web_ayahuya_remote_sha
+  changed_when: false
+  environment:
+    GIT_SSH_COMMAND: "ssh -i /var/www/.ssh/id_ed25519_deploy -o StrictHostKeyChecking=no"
+  become: true
+  become_user: "{{ app_owner }}"
+
 - name: "更新判定 [{{ web_ayahuya_repo_url | basename | replace('.git', '') }}]"
   ansible.builtin.set_fact:
     web_ayahuya_code_updated: >-
@@ -255,10 +262,6 @@
   ansible.posix.synchronize:
     src: "{{ app_dir }}/pkhack_tmp/{{ item }}"   # html → nginx 静的配信、quiz → pkhack_app ビルド
     dest: "{{ app_dir }}/pkhack/"
-- name: ayahuya 静的コンテンツを本番ディレクトリへ配置（同期） # noqa: no-handler
-  ansible.posix.synchronize:
-    src: "{{ app_dir }}/ayahuya_tmp/html"   # ayahuya repo の html/ のみを配信（docs-src 等は不要）
-    dest: "{{ app_dir }}/ayahuya/"          # → {{ app_dir }}/ayahuya/html（nginx がボリュームマウント）
     delete: true
     rsync_opts:
       - "--exclude=.git"
@@ -267,6 +270,15 @@
     - html
     - quiz
   when: web_pkhack_code_updated
+
+- name: ayahuya 静的コンテンツを本番ディレクトリへ配置（同期） # noqa: no-handler
+  ansible.posix.synchronize:
+    src: "{{ app_dir }}/ayahuya_tmp/html"   # ayahuya repo の html/ のみを配信（docs-src 等は不要）
+    dest: "{{ app_dir }}/ayahuya/"          # → {{ app_dir }}/ayahuya/html（nginx がボリュームマウント）
+    delete: true
+    rsync_opts:
+      - "--exclude=.git"
+  delegate_to: "{{ inventory_hostname }}"
   when: web_ayahuya_code_updated
 
 - name: インフラ設定ファイル群（Docker Compose等）の配置
@@ -355,8 +367,7 @@
   ansible.builtin.command:
     cmd: docker compose restart web
     chdir: "{{ app_dir }}"
-  when: web_files_copy.changed or web_templates_copy.changed or web_env_template.changed or web_ssl_key_copy.changed or web_alexa_code_updated or web_pkhack_code_updated
-  when: web_files_copy.changed or web_templates_copy.changed or web_env_template.changed or web_ssl_key_copy.changed or web_alexa_code_updated or web_ayahuya_code_updated
+  when: web_files_copy.changed or web_templates_copy.changed or web_env_template.changed or web_ssl_key_copy.changed or web_alexa_code_updated or web_pkhack_code_updated or web_ayahuya_code_updated
   changed_when: true
 
 - name: SSL証明書期限チェックスクリプトの配置

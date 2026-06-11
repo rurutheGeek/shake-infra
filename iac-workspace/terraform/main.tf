@@ -84,18 +84,28 @@ resource "cloudflare_record" "www_domain" {
   proxied = true
 }
 
-# 3d. Aレコード: shake (プロキシ済み・Web用 / Issues・Shaketter・ToBa・Ikura)
-resource "cloudflare_record" "shake_domain" {
-  zone_id = var.cloudflare_zone_id
-  name    = "shake"
-# 3c. Aレコード: pkhack (プロキシ済み・Web用 / ポケモンクイズ)
-resource "cloudflare_record" "pkhack_domain" {
-  zone_id = var.cloudflare_zone_id
-  name    = "pkhack"
 # 3b. Aレコード: ayahuya (プロキシ済み・Web用 / アヤフヤ大辞典・技術デモ)
 resource "cloudflare_record" "ayahuya_domain" {
   zone_id = var.cloudflare_zone_id
   name    = "ayahuya"
+  content = var.server_ip
+  type    = "A"
+  proxied = true
+}
+
+# 3c. Aレコード: pkhack (プロキシ済み・Web用 / ポケモンクイズ)
+resource "cloudflare_record" "pkhack_domain" {
+  zone_id = var.cloudflare_zone_id
+  name    = "pkhack"
+  content = var.server_ip
+  type    = "A"
+  proxied = true
+}
+
+# 3d. Aレコード: shake (プロキシ済み・Web用 / Issues・Shaketter・ToBa・Ikura)
+resource "cloudflare_record" "shake_domain" {
+  zone_id = var.cloudflare_zone_id
+  name    = "shake"
   content = var.server_ip
   type    = "A"
   proxied = true
@@ -118,19 +128,11 @@ resource "cloudflare_record" "pixelmon_srv" {
   }
 }
 
-# ==========================================
-# Zone Settings（CF↔オリジン TLS モード）
-# ==========================================
-# Full にすることで、既存の apex 証明書のまま各サブドメイン（ayahuya 等）が
-# Cloudflare プロキシ経由で TLS 配信できる（CF はオリジン証明書のホスト名検証を
-# しないため、ワイルドカード origin 証明書が不要）。
-# ブラウザ↔CF は Universal SSL が *.ruruthegeek.dpdns.org（1階層）を自動カバーする。
-resource "cloudflare_zone_settings_override" "shake_zone" {
-  zone_id = var.cloudflare_zone_id
-  settings {
-    ssl = "full"
-  }
-}
+# 注: CF↔オリジンの SSL モードは Full（Cloudflare ダッシュボードで設定済み）。
+# 各サブドメインは apex 証明書のまま CF プロキシ経由で TLS 配信できる（CF はオリジン
+# 証明書のホスト名検証をしない）。ブラウザ↔CF は Universal SSL が *.ruruthegeek.dpdns.org を
+# 自動カバー。Terraform 管理にするには API トークンに Zone Settings:Edit 権限が必要なため、
+# ここでは扱わない（cloudflare_zone_settings_override は権限不足でエラーになる）。
 
 # ==========================================
 # R2 Bucket
@@ -305,6 +307,11 @@ data "github_repository" "pkhack" {
 # push 時に shake-infra へ deploy_pkhack を dispatch するためのトークン
 resource "github_actions_secret" "pkhack_dispatch_token" {
   repository  = data.github_repository.pkhack.name
+  secret_name = "INFRA_REPO_DISPATCH_TOKEN"
+  value       = var.infra_repo_dispatch_token
+}
+
+# ------------------------------------------
 # ayahuya（アヤフヤ大辞典・技術デモ / shake-web 3分割 Phase A）
 # ------------------------------------------
 data "github_repository" "ayahuya" {
@@ -318,29 +325,10 @@ resource "github_actions_secret" "ayahuya_dispatch_token" {
   value       = var.infra_repo_dispatch_token
 }
 
-# web ロールが private な pkhack を clone するための read-only Deploy key。
-# 公開鍵は shakeserver の /var/www/.ssh/id_ed25519_deploy.pub（web ロールが生成）。
-# 値が未設定の間はスキップ（chicken-egg 回避）。
-# web ロールが private な ayahuya を clone するための Deploy key（読み取り専用）。
-# 公開鍵は shakeserver の /var/www/.ssh/id_ed25519_deploy.pub（web ロールが生成）。
-# 値が未設定の間はスキップする（chicken-egg 回避）。
-variable "web_deploy_public_key" {
-  description = "shakeserver の web デプロイ用 SSH 公開鍵（id_ed25519_deploy.pub）。未設定なら Deploy key 登録をスキップ。"
-  type        = string
-  default     = ""
-}
-
-resource "github_repository_deploy_key" "pkhack_deploy_key" {
-  count      = var.web_deploy_public_key == "" ? 0 : 1
-  title      = "shakeserver web role (read-only)"
-  repository = data.github_repository.pkhack.name
-resource "github_repository_deploy_key" "ayahuya_deploy_key" {
-  count      = var.web_deploy_public_key == "" ? 0 : 1
-  title      = "shakeserver web role (read-only)"
-  repository = data.github_repository.ayahuya.name
-  key        = var.web_deploy_public_key
-  read_only  = true
-}
+# 注: pkhack / ayahuya の clone は shakeserver の Deploy Key（/var/www/.ssh/id_ed25519_deploy）で
+# 行う。この鍵は既に各リポジトリで使用可能（GitHub は同一鍵を複数リポジトリの Deploy Key として
+# 重複登録できず "key already in use" になるため）、Terraform では登録しない。鍵の登録は GitHub 側で
+# 管理する（web ロールが未登録時にエラーで公開鍵を表示する仕組みあり）。
 
 # ==========================================
 # Cloudflare Workers (Failover / Maintenance)
