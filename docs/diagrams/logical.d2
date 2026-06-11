@@ -21,8 +21,9 @@ p: "negitoroserver [proxy_node]" {
 
 n1: "shakeserver [home_node1] — Docker" {
   style.fill: "#e3f2fd"
-  nginx: "Nginx :443/:8443\nreal_ip復元"
-  quiz: "quiz_app :3000"
+  nginx: "Nginx :443/:8443\nreal_ip復元\nsubdomain 振り分け"
+  quiz: "quiz_app :3000\n(apex/shake. : Shakeブランド API)"
+  pkhack: "pkhack_app :3000\n(pkhack. : ポケモンクイズ)"
   alexa: "alexa_skill :8000"
   pg: "PostgreSQL 15 :5432" {
     shape: cylinder
@@ -63,9 +64,11 @@ p.sslh -> n1.nginx: "HTTP :80"
 p.sslh -> n1.mc: "MC :25565"
 p.stream -> n1.nginx: "TCP :443 (proxy_protocol)"
 
-n1.nginx -> n1.quiz: "/quiz"
+n1.nginx -> n1.quiz: "apex/shake. : /quiz,/api"
+n1.nginx -> n1.pkhack: "pkhack. : /quiz"
 n1.nginx -> n1.alexa: "/alexa"
-n1.quiz -> n1.pg
+n1.quiz -> n1.pg: "shakeweb DB"
+n1.pkhack -> n1.pg: "pkhack DB (ランキング)"
 n1.bot -> n1.pg
 n1.pg -> n1.dbbk
 n1.mc -> n1.mcbk
