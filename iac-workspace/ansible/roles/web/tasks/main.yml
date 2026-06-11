@@ -245,9 +245,9 @@
     web_pkhack_code_updated: >-
       {{
         web_force_rebuild | default(false) | bool or
-        web_pkhack_local_sha.rc != 0 or
-        (web_pkhack_remote_sha.stdout | trim) | length == 0 or
-        (web_pkhack_remote_sha.stdout | trim).split('\t')[0] != (web_pkhack_local_sha.stdout | trim)
+        (web_pkhack_local_sha.rc | default(1)) != 0 or
+        (web_pkhack_remote_sha.stdout | default('') | trim) | length == 0 or
+        (web_pkhack_remote_sha.stdout | default('') | trim).split('\t')[0] != (web_pkhack_local_sha.stdout | default('') | trim)
       }}
 
 - name: "Git同期 [{{ web_pkhack_repo_url | basename | replace('.git', '') }}:{{ web_pkhack_git_branch | default('main') }}] → {{ app_dir }}/pkhack_tmp"
@@ -288,9 +288,9 @@
     web_ayahuya_code_updated: >-
       {{
         web_force_rebuild | default(false) | bool or
-        web_ayahuya_local_sha.rc != 0 or
-        (web_ayahuya_remote_sha.stdout | trim) | length == 0 or
-        (web_ayahuya_remote_sha.stdout | trim).split('\t')[0] != (web_ayahuya_local_sha.stdout | trim)
+        (web_ayahuya_local_sha.rc | default(1)) != 0 or
+        (web_ayahuya_remote_sha.stdout | default('') | trim) | length == 0 or
+        (web_ayahuya_remote_sha.stdout | default('') | trim).split('\t')[0] != (web_ayahuya_local_sha.stdout | default('') | trim)
       }}
 
 - name: "Git同期 [{{ web_ayahuya_repo_url | basename | replace('.git', '') }}:{{ web_ayahuya_git_branch | default('main') }}] → {{ app_dir }}/ayahuya_tmp"
