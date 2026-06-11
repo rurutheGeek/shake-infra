@@ -6,9 +6,6 @@
 #  後方互換のため /quiz/* も引き続き有効。
 #  TLS は CF↔オリジン ssl=full（apex 証明書流用・ホスト名検証なし）前提。
 #  ブラウザ↔CF は Universal SSL が *.ruruthegeek.dpdns.org を自動カバー。
-#
-#  TODO(follow-up): 共有URL OGP（/shaketter/p/<id>・/toba/e/<id> → og エンドポイント）。
-#  動的 proxy_pass のため resolver 127.0.0.11 が必要で、実環境での疎通確認とセットで追加する。
 # =============================================================================
 server {
     listen 443 ssl proxy_protocol;
@@ -23,6 +20,23 @@ server {
 
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # 共有URL OGP（Discord 等のクローラーにメタタグを返す。ブラウザは SPA へ）。
+    # 動的 proxy_pass（$1 を含む）には resolver が必要（docker 組込み DNS）。
+    resolver 127.0.0.11 valid=30s;
+
+    # 正規表現に { } を含むため location は必ずダブルクオートで囲む（nginx の構文要件）。
+    location ~ "^/shaketter/p/([a-zA-Z0-9_-]+)$" {
+        proxy_pass http://quiz_app:3000/quiz/api/shaketter/og?id=$1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ~ "^/toba/e/([a-zA-Z0-9]{12})$" {
+        proxy_pass http://quiz_app:3000/quiz/api/toba/og?id=$1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
 
     # 外向き API 名前空間 /api/* → Next.js 実体 /quiz/api/*（明示 rewrite で確実に付け替え）
     location /api/ {
