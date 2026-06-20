@@ -273,7 +273,9 @@ jobs:
           echo "ProxyDown firing? -> $firing"
           if [ "$firing" = "yes" ]; then
             echo "メンテ中のため maintenance_toggle.sh on でルートを補完します（冪等）"
-            /opt/monitoring/maintenance_toggle.sh on || echo "::warning::メンテルート補完に失敗（maintenance.env の権限/認証を確認）"
+            # ランナーは ansible_admin で動作し maintenance.env(0600 owner ruru) を読めないため
+            # root 権限で実行する（ansible デプロイ同様 passwordless sudo を利用）。
+            sudo -n /opt/monitoring/maintenance_toggle.sh on || echo "::warning::メンテルート補完に失敗（maintenance.env の権限/認証/ sudo を確認）"
           else
             echo "メンテ中ではないため補完不要"
           fi
