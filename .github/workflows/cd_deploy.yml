@@ -257,6 +257,27 @@ jobs:
           fi
           echo "監視反映の検証 PASSED"
 
+      # フェイルセーフのメンテルート補完（メンテ中のみ）。
+      # 監視コンポーネント再デプロイ時、もし現在 ProxyDown が発火中（=メンテ中）なら、
+      # 更新後の maintenance_toggle.sh を on で流して不足ルート（apex のみだった旧状態に
+      # サブドメイン *.ruruthegeek.dpdns.org/* を追加）を補完する。on は冪等（既存ルートは
+      # スキップ）なので二重作成は起きない。メンテ中でなければ何もしない。
+      - name: フェイルセーフのメンテルート補完（メンテ中のみ）
+        if: github.event.action == 'deploy_monitoring' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'monitoring')
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "dry-run のため補完をスキップ"; exit 0
+          fi
+          firing=$(curl -s "http://localhost:9090/api/v1/alerts" \
+            | python3 -c "import json,sys; a=json.load(sys.stdin)['data']['alerts']; print('yes' if any(x['labels'].get('alertname')=='ProxyDown' and x.get('state')=='firing' for x in a) else 'no')" 2>/dev/null || echo no)
+          echo "ProxyDown firing? -> $firing"
+          if [ "$firing" = "yes" ]; then
+            echo "メンテ中のため maintenance_toggle.sh on でルートを補完します（冪等）"
+            /opt/monitoring/maintenance_toggle.sh on || echo "::warning::メンテルート補完に失敗（maintenance.env の権限/認証を確認）"
+          else
+            echo "メンテ中ではないため補完不要"
+          fi
+
       - name: 認証情報のクリーンアップ
         if: always()
         run: |
