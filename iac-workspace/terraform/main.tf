@@ -348,10 +348,21 @@ resource "cloudflare_workers_script" "failover_script" {
   module = true
 }
 
+# apex とサブドメインは別パターンで登録する必要がある。
+# "ruruthegeek.dpdns.org/*" は apex のみ、"*.ruruthegeek.dpdns.org/*" は
+# サブドメイン (pkhack./shake./ayahuya.) に一致する。両方を Worker へ向けないと
+# サブドメインがメンテ Worker に捕まらずダウン中のオリジンへ転送されてしまう。
 resource "cloudflare_workers_route" "failover_route" {
   count       = var.maintenance_mode ? 1 : 0
   zone_id     = var.cloudflare_zone_id
   pattern     = "ruruthegeek.dpdns.org/*"
+  script_name = cloudflare_workers_script.failover_script.name
+}
+
+resource "cloudflare_workers_route" "failover_route_subdomains" {
+  count       = var.maintenance_mode ? 1 : 0
+  zone_id     = var.cloudflare_zone_id
+  pattern     = "*.ruruthegeek.dpdns.org/*"
   script_name = cloudflare_workers_script.failover_script.name
 }
 
