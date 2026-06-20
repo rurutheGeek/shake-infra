@@ -12,6 +12,7 @@ on:
           - shakeweb
           - pkhack
           - ayahuya
+          - monitoring
       dry_run:
         description: 'ドライラン（シミュレーションのみ）'
         required: false
@@ -23,6 +24,7 @@ on:
       - deploy_shakeweb
       - deploy_pkhack
       - deploy_ayahuya
+      - deploy_monitoring
 
 jobs:
   deploy:
@@ -204,6 +206,56 @@ jobs:
           fi
           curl -fsS -o /dev/null "$BASE/" && echo "root redirect page OK"
           echo "Smoke test PASSED"
+
+      - name: 監視スタックのデプロイ
+        if: github.event.action == 'deploy_monitoring' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'monitoring')
+        run: |
+          EXTRA_ARGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            EXTRA_ARGS="--check"
+          fi
+          cd iac-workspace
+          ansible-playbook -i local_config/ansible/inventory.ini ansible/site.yml --tags monitoring --limit home_node2 \
+            -e @local_config/ansible/vars.yml \
+            -e @local_config/ansible/credentials/vault.yml \
+            --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
+            --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}" $EXTRA_ARGS
+
+      # 監視スタック反映後、Prometheus がフェイルオーバー監視対象（blackbox ジョブ）を
+      # 正しいリバースプロキシ negitoroserver(100.92.253.28) に向けて再読込したかを検証する。
+      # ここが旧 shakeserver(100.116.167.59) のままだと ProxyDown が誤って発火せず、
+      # メンテ自動切替（フェイルセーフ）が機能しない（本検証はそれを防ぐ回帰チェック）。
+      - name: 監視反映の検証（ProxyDown 監視対象）
+        if: github.event.action == 'deploy_monitoring' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'monitoring')
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "dry-run のため検証をスキップ"; exit 0
+          fi
+          set -euo pipefail
+          echo "Prometheus の blackbox ターゲットを検証します ..."
+          ok=0
+          for i in $(seq 1 12); do
+            # blackbox ジョブのスクレイプ対象に proxy(negitoroserver) が入っているか
+            if curl -s "http://localhost:9090/api/v1/targets" \
+                 | grep -q '100\.92\.253\.28'; then
+              ok=1; break
+            fi
+            echo "  attempt $i: まだ反映されていません"
+            sleep 5
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::検証 FAILED: blackbox ターゲットが negitoroserver(100.92.253.28) を向いていません"
+            exit 1
+          fi
+          # 旧ターゲット(shakeserver)が blackbox ジョブに残っていないことも確認
+          if curl -s "http://localhost:9090/api/v1/targets" \
+               | python3 -c "import json,sys; d=json.load(sys.stdin); ts=[t for t in d['data']['activeTargets'] if t['labels'].get('job')=='blackbox']; sys.exit(1 if any('100.116.167.59' in t.get('scrapeUrl','')+json.dumps(t.get('discoveredLabels',{})) for t in ts) else 0)"; then
+            echo "blackbox ジョブは proxy のみを監視（旧 shakeserver 参照なし）: OK"
+          else
+            echo "::error::検証 FAILED: blackbox ジョブに旧 shakeserver(100.116.167.59) 参照が残っています"
+            exit 1
+          fi
+          echo "監視反映の検証 PASSED"
 
       - name: 認証情報のクリーンアップ
         if: always()

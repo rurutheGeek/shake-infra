@@ -24,7 +24,7 @@ scrape_configs:
       module: [http_proxy_reachable]   # 80→301 を成功とみなす（:443へは追従しない）
     static_configs:
       - targets:
-          - http://100.116.167.59:80
+          - http://100.92.253.28:80   # negitoroserver (proxy_node) = 実際のリバースプロキシ
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
