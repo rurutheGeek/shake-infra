@@ -67,7 +67,13 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # 静的フロント（html/index.html・issues・shaketter・toba・ikura・assets 等）
+    # shake サブドメインのルートは Shake ツールの公開窓口へ。
+    # apex（ruruthegeek.dpdns.org）は従来のランディング、shake.* は窓口を入口にする。
+    location = / {
+        return 302 /shake/;
+    }
+
+    # 静的フロント（html/shake・issues・shaketter・toba・ikura・assets 等）
     location / {
         root   /usr/share/nginx/html;
         index  index.html index.htm;
