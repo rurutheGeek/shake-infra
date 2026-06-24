@@ -23,7 +23,7 @@ jobs:
         working-directory: iac-workspace/ansible
     steps:
       - name: リポジトリのチェックアウト
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Python のセットアップ
         uses: actions/setup-python@v6
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: リポジトリのチェックアウト
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Python のセットアップ
         uses: actions/setup-python@v6
@@ -76,7 +76,7 @@ jobs:
         working-directory: iac-workspace/terraform
     steps:
       - name: リポジトリのチェックアウト
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Terraform のセットアップ
         uses: hashicorp/setup-terraform@v4
@@ -104,7 +104,7 @@ jobs:
         working-directory: iac-workspace/terraform
     steps:
       - name: リポジトリのチェックアウト
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Terraform のセットアップ
         uses: hashicorp/setup-terraform@v4
@@ -161,7 +161,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: リポジトリのチェックアウト
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Trivy 実行（IaC設定スキャン）
         # aquasecurity/trivy-action v0.36.0 を使用。
