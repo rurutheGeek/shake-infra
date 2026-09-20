@@ -66,10 +66,24 @@
     state: present
     wait: true
 
+- name: メンテ切替の状態ディレクトリ作成（自動ONマーカー用）
+  ansible.builtin.file:
+    path: /opt/monitoring/state
+    state: directory
+    owner: ruru
+    group: ruru
+    mode: "0750"
+
 - name: メンテ切替スクリプト（Cloudflare API 方式）の配置
   ansible.builtin.copy:
     src: files/monitoring/maintenance_toggle.sh
     dest: /opt/monitoring/maintenance_toggle.sh
+    mode: "0755"
+
+- name: メンテ状態の収束スクリプトの配置
+  ansible.builtin.copy:
+    src: files/monitoring/maintenance_reconcile.sh
+    dest: /opt/monitoring/maintenance_reconcile.sh
     mode: "0755"
 
 - name: メンテ切替用の認証 env（Vault から注入）の配置
@@ -93,5 +107,21 @@
   ansible.builtin.systemd:
     name: failover-webhook.service
     state: restarted
+    enabled: yes
+    daemon_reload: yes
+
+- name: メンテ状態収束の systemd ユニット（service/timer）の配置
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - maintenance-reconcile.service
+    - maintenance-reconcile.timer
+
+- name: メンテ状態収束タイマーの起動と有効化
+  ansible.builtin.systemd:
+    name: maintenance-reconcile.timer
+    state: started
     enabled: yes
     daemon_reload: yes

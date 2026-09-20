@@ -1,0 +1,11 @@
+[Unit]
+Description=Run maintenance mode reconcile every minute
+
+[Timer]
+# Prometheus の初回スクレイプと Alertmanager 起動を待ってから開始する。
+OnBootSec=3min
+OnUnitActiveSec=1min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

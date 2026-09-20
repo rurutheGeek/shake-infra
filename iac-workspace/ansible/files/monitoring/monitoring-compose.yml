@@ -13,6 +13,13 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     network_mode: "host"
+    # 匿名利用状況の送信（reporting）と更新確認（check_for_updates）を無効化する。
+    # どちらも grafana.com への外向き通信・テレメトリで、本構成では不要。
+    # default_language: UI を日本語にする（Grafana は ja-JP 対応。未設定ユーザーに適用）。
+    environment:
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_USERS_DEFAULT_LANGUAGE: "ja-JP"
     volumes:
       - grafana_data:/var/lib/grafana
     restart: unless-stopped
