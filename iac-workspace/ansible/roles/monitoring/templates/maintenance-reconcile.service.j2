@@ -1,0 +1,11 @@
+[Unit]
+Description=Converge maintenance mode with ProxyDown alert state
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ruru
+Group=ruru
+Nice=10
+ExecStart=/opt/monitoring/maintenance_reconcile.sh

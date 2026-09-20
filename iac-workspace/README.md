@@ -172,8 +172,8 @@ Ansible設計規約に基づき、環境ごとに流し込まれる値は「構�
 監視基盤（Prometheus/Alertmanager）とTerraformを連携させ、完全無料・自動の障害切り替えを実現しています。
 
 1. ダウン検知: `tarakoserver` のPrometheusが自宅のプロキシサーバーへのHTTP疎通を監視。
-2. 自動ON: 30秒間のダウンを検知すると、AlertmanagerがローカルのPython製Webhookサーバーへ通知。Webhookサーバーが自動的に [toggle_maintenance.sh](toggle_maintenance.sh) on を実行し、Cloudflareのルーティングを事前にデプロイされたミニゲーム付きメンテナンス画面（Workers）へ瞬時に切り替えます。
-3. 自動OFF: プロキシサーバーが復旧すると解決アラートが発火し、Webhookサーバーが [toggle_maintenance.sh](toggle_maintenance.sh) off を実行。自動で元のルーティングへ戻します。
+2. 自動ON: 30秒間のダウンを検知すると、AlertmanagerがローカルのPython製Webhookサーバーへ通知。Webhookサーバーが自動的に `maintenance_toggle.sh` on を実行し、Cloudflareのルーティングを事前にデプロイされたミニゲーム付きメンテナンス画面（Workers）へ瞬時に切り替えます。
+3. 自動OFF: プロキシサーバーが復旧すると解決アラートが発火し、Webhookサーバーが `maintenance_toggle.sh` off を実行。自動で元のルーティングへ戻します。さらに 1 分毎の収束タイマー（`maintenance-reconcile.timer`）が ProxyDown 状態を照会し、解決通知が欠落しても on/off を収束させます。
 ※ 実行と同時にDiscordへもステータスが通知されます。
 
 ---
