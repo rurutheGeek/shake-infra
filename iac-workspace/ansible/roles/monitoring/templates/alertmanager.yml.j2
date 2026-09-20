@@ -22,6 +22,9 @@ receivers:
   - name: 'failover_webhook'
     webhook_configs:
       - url: 'http://127.0.0.1:9000/webhook'
+        # ProxyDown の resolved でも webhook（=メンテ OFF）を呼ぶため明示する
+        # （webhook_config の既定値は true だが、意図を設定に残す）。
+        send_resolved: true
   - name: 'discord'
     discord_configs:
       - webhook_url: '{{ discord_webhook_url }}'
