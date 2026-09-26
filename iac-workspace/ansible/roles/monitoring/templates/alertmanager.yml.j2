@@ -5,8 +5,11 @@ route:
   receiver: 'discord'          # 既定: マッチしないアラートは Discord へ通知
   group_by: ['alertname']
   group_wait: 10s
-  group_interval: 10s
-  repeat_interval: 1h
+  # 既に通知したグループへ新しいアラートが加わったときの再通知間隔。
+  group_interval: 5m
+  # 障害が続く間の再通知間隔。1h だと「4アラート×毎時」で通知が溢れるため 12h にする。
+  # 初回発火と resolved は必ず届く（repeat_interval は「まだ鳴っている」の再送のみ）。
+  repeat_interval: 12h
   routes:
     # ProxyDown はフェイルオーバー Webhook（メンテ自動切替）へ送る。
     # continue: true で後続ルートも評価し、Discord にも通知する。
@@ -17,6 +20,22 @@ route:
     - matchers:
         - 'alertname = "ProxyDown"'
       receiver: 'discord'
+
+# 1つの障害で通知を増やさない。ProxyDown（プロキシ死亡）が鳴っている間は、
+# その派生であるサイト系アラートと、プロキシ自身の NodeDown を抑止する。
+# shakeserver / tarakoserver の NodeDown は別の障害なので抑止しない。
+inhibit_rules:
+  - source_matchers:
+      - 'alertname = "ProxyDown"'
+    target_matchers:
+      - 'alertname =~ "WebSiteDown|WebDbEndpointDown"'
+    equal: []
+  - source_matchers:
+      - 'alertname = "ProxyDown"'
+    target_matchers:
+      - 'alertname = "NodeDown"'
+      - 'instance = "100.92.253.28:9100"'
+    equal: []
 
 receivers:
   - name: 'failover_webhook'
