@@ -5,6 +5,7 @@ Alertmanager 設定（alertmanager.yml.j2）の検証（本番非接続）
   `amtool check-config` で構文検証する（inhibit_rules を含む）。
 - 通知量の方針（repeat_interval と抑制）が後退しないよう最低限の表明を置く。
 """
+import os
 import pathlib
 import subprocess
 import tempfile
@@ -36,8 +37,12 @@ def test_notification_policy_stays_quiet():
 def test_prod_alertmanager_config_valid():
     """描画した alertmanager.yml を amtool で検証（デプロイ前の構文チェック）。"""
     with tempfile.TemporaryDirectory() as tmp:
+        # コンテナ（nobody）から読めるようにする。既定の 0700 のままだと
+        # amtool が "permission denied" になる。
+        os.chmod(tmp, 0o755)
         config = pathlib.Path(tmp) / "alertmanager.yml"
         config.write_text(_render(), encoding="utf-8")
+        config.chmod(0o644)
         result = subprocess.run(
             ["docker", "run", "--rm", "-v", f"{tmp}:/work", "-w", "/work",
              "--entrypoint", "amtool", "prom/alertmanager:latest",
