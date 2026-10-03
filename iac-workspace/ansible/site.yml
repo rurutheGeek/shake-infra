@@ -10,7 +10,7 @@
 #  Phase 3: docker          home_node1 / home_node2 並列
 #  Phase 4: サービス展開    home_node1 / home_node2 を strategy:free で並列実行
 #           ┌─ home_node1: ups_exporter → postgres → minecraft
-#           │               → web → ubsleepy → ubsleepy_backup
+#           │               → web
 #           └─ home_node2: monitoring → github_runner
 #            （docker完了後、両ノードが互いを待たずに独立して進む）
 #
@@ -121,34 +121,11 @@
       when: inventory_hostname in groups['home_node1']
       tags: web
 
-    - name: メインサーバーのDiscord Bot (UBSLEEPY) の構成
-      ansible.builtin.include_role:
-        name: ubsleepy
-        apply:
-          tags:
-            - ubsleepy
-      vars:
-        ubsleepy_repo_url: "https://github.com/rurutheGeek/UBSLEEPY.git"
-        ubsleepy_dir: "/opt/ubsleepy"
-        ubsleepy_r2_access_key_id: "{{ cf_access_key }}"
-        ubsleepy_r2_secret_access_key: "{{ cf_secret_key }}"
-      when: inventory_hostname in groups['home_node1']
-      tags: ubsleepy
-
-    - name: メインサーバーの自動バックアップの構成
-      ansible.builtin.include_role:
-        name: ubsleepy_backup
-        apply:
-          tags:
-            - ubsleepy_backup
-      vars:
-        ubsleepy_backup_r2_bucket: "ubsleepy-app-data"
-        ubsleepy_backup_r2_endpoint: "43b2b53511f5cc6221885020999d30e6.r2.cloudflarestorage.com"
-        ubsleepy_backup_r2_access_key_id: "{{ cf_access_key }}"
-        ubsleepy_backup_r2_secret_access_key: "{{ cf_secret_key }}"
-        ubsleepy_backup_max_backups: 7
-      when: inventory_hostname in groups['home_node1']
-      tags: ubsleepy_backup
+    # Discord Bot (UBSLEEPY) は 2026-10-04 に shake-cloud の apps-01 へ移した
+    # （rurutheGeek/shake-cloud の stacks/ubsleepy・docs/operations/ubsleepy.md）。
+    # ここで ubsleepy / ubsleepy_backup ロールを流すと、同じトークンのBotが
+    # shakeserver でも起動して二重になるため、展開対象から外している。
+    # shakeserver の /opt/ubsleepy は切り戻し用に停止したまま残してある。
 
     # ------------------------------------------------------------------
     # home_node2 専用ロール
