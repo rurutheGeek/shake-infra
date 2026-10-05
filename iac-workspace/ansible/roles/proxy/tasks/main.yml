@@ -1,7 +1,7 @@
 ---
 # proxy/tasks/main.yml
-- name: TailscaleのDNS強制上書き（MagicDNS）を無効化し、LANのサブネットルートを受ける
-  ansible.builtin.command: tailscale set --accept-dns=false --accept-routes
+- name: TailscaleのDNS強制上書き（MagicDNS）を無効化
+  ansible.builtin.command: tailscale set --accept-dns=false
   failed_when: false
   changed_when: false
 
