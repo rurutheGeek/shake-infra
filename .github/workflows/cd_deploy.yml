@@ -12,6 +12,7 @@ on:
           - pkhack
           - ayahuya
           - monitoring
+          - proxy
       dry_run:
         description: 'ドライラン（シミュレーションのみ）'
         required: false
@@ -65,6 +66,45 @@ jobs:
         run: |
           cd iac-workspace/ansible
           ansible-galaxy collection install -r requirements.yml --force
+
+      # 公開の中継（negitoroserver）の向き先を変える。2026-10-05 に web-01 へ
+      # 移行するための手順で、Minecraft（25565）だけは旧ホストに残す。
+      - name: プロキシ（negitoroserver）のデプロイ
+        if: github.event.action == 'deploy_proxy' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'proxy')
+        run: |
+          EXTRA_ARGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            EXTRA_ARGS="--check"
+          fi
+          cd iac-workspace
+          ansible-playbook -i local_config/ansible/inventory.ini ansible/site.yml --tags proxy \
+            -e @local_config/ansible/vars.yml \
+            -e @local_config/ansible/credentials/vault.yml \
+            --private-key="${{ env.ANSIBLE_PRIVATE_KEY_FILE }}" \
+            --vault-password-file="${{ env.ANSIBLE_VAULT_PASS_FILE }}" $EXTRA_ARGS
+
+      # 切替の目印は HSTS ヘッダ。旧ホストの nginx は付けず、web-01 が付ける。
+      # Cloudflare はオリジンの Server を cloudflare に置き換えるので使えない。
+      - name: 切替のスモークテスト（中継先が web-01 か）
+        if: github.event.action == 'deploy_proxy' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'proxy')
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "dry-run のためスモークテストをスキップ"; exit 0
+          fi
+          set -euo pipefail
+          ok=0
+          for i in $(seq 1 12); do
+            hsts=$(curl -sI --max-time 10 https://shake.ruruthegeek.dpdns.org/ | tr -d '\r' | grep -i '^strict-transport-security:' || true)
+            echo "  attempt $i: $hsts"
+            if [ -n "$hsts" ]; then ok=1; break; fi
+            sleep 5
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::HSTS が付いていません。中継先が web-01 になっていない可能性があります"
+            exit 1
+          fi
+          curl -fsS -o /dev/null https://pkhack.ruruthegeek.dpdns.org/ && echo "pkhack OK"
+          echo "切替スモークテスト PASSED"
 
       - name: shake-web のデプロイ
         if: github.event.action == 'deploy_shakeweb' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'shakeweb')
